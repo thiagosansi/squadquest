@@ -32,8 +32,10 @@ export type PowerChallengeReply = { id: string; player_id: string; name: string;
 export type PowerChallengeView = {
   id: string;
   role_key: SecretRoleKey;
-  holder_player_id: string;
-  holder_name: string;
+  /** Só o próprio detentor recebe o id; para o resto do time vem null (migration 0013). */
+  holder_player_id: string | null;
+  /** null até a fase de reveal: o detentor fica anônimo para o time (migration 0013). */
+  holder_name: string | null;
   prompt: string;
   round: 1 | 2;
   opened_at: string;
@@ -54,7 +56,8 @@ export type PowerOutcome = {
   role_key: SecretRoleKey;
   prompt: string;
   status: "approved" | "unanswered";
-  holder_name: string;
+  /** null até a fase de reveal: o detentor fica anônimo para o time (migration 0013). */
+  holder_name: string | null;
   round: number;
   replies: Array<{ name: string; content: string }>;
   /** Resposta escolhida pelo detentor ao aprovar; null = aprovado pelo tempo ou sem resposta. */
@@ -80,7 +83,8 @@ export type GameplayTeamView = {
   decision_votes: Array<{ idea_id: string; votes_count: number }> | null;
   solution: MissionSolution | null;
   power_used: boolean | null;
-  power_actions: Array<{ name: string; avatar_id: string; content: string; created_at: string }> | null;
+  /** name/avatar_id vêm null até a fase de reveal: quem acionou o poder fica anônimo (migration 0013). */
+  power_actions: Array<{ name: string | null; avatar_id: string | null; content: string; created_at: string }> | null;
   hypothesis_count: number;
   idea_count: number;
   idea_ballots: number;

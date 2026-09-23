@@ -59,6 +59,9 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
   const trimmed = replyText.trim();
   const canReply = !busy && !expired && trimmed.length >= MIN_REPLY && trimmed.length <= MAX_REPLY;
   const clockClass = expired ? "over" : remaining < WARN_SECONDS ? "warn" : "";
+  // Antes do reveal o servidor manda holder_name null: o detentor fica anônimo para o time.
+  const holderLabel = challenge.holder_name ?? "um colega de time";
+  const waitingLabel = challenge.holder_name ? `Aguardando o julgamento de ${challenge.holder_name}.` : "Aguardando o julgamento do detentor do poder.";
 
   function submitReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,7 +86,7 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
         <div>
           <div className="quest-section-kicker">DESAFIO DE PODER · RODADA {challenge.round}/2</div>
           <h2 id="power-challenge-title">{POWER_CHALLENGE_TITLES[challenge.role_key]}</h2>
-          <small>lançado por {challenge.holder_name}</small>
+          <small>lançado por {holderLabel}</small>
         </div>
         <strong className={`power-challenge-clock ${clockClass}`}>{expired ? "Tempo esgotado, fechando…" : formatClock(remaining)}</strong>
       </header>
@@ -99,7 +102,7 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
           {challenge.round === 1 && !expired && <button className="secondary-button" disabled={busy} onClick={() => resolve("extend")} type="button">Mais uma rodada (+60 s)</button>}
         </div>
       </> : challenge.my_reply_submitted ? <>
-        <p className="power-challenge-wait">✓ Sua resposta foi enviada. Aguardando o julgamento de {challenge.holder_name}.</p>
+        <p className="power-challenge-wait">✓ Sua resposta foi enviada. {waitingLabel}</p>
         <ReplyList replies={visibleReplies} />
       </> : <>
         <div className="power-challenge-count">{roundReplies.length}/{challenge.expected_replies} já responderam</div>
@@ -137,13 +140,13 @@ export function PowerOutcomes({ outcomes }: { outcomes: PowerOutcome[] | null | 
       <div className="quest-section-kicker">{kicker}</div>
       <em>“{outcome.prompt}”</em>
       {chosen ? <>
-        <p className="chosen"><strong>{chosen.name}:</strong> {chosen.content} <em>✓ escolhida por {outcome.holder_name}</em></p>
+        <p className="chosen"><strong>{chosen.name}:</strong> {chosen.content} <em>{outcome.holder_name ? `✓ escolhida por ${outcome.holder_name}` : "✓ escolhida pelo detentor do poder"}</em></p>
         {others.length > 0 && <details>
           <summary>outras respostas ({others.length})</summary>
           {others.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>)}
         </details>}
       </> : outcome.replies.length ? outcome.replies.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>) : <p>Ninguém respondeu a tempo.</p>}
-      <small>{role.icon} {role.name} · {outcome.holder_name}{outcome.round === 2 ? " · 2 rodadas" : ""}</small>
+      <small>{role.icon} {role.name}{outcome.holder_name ? ` · ${outcome.holder_name}` : ""}{outcome.round === 2 ? " · 2 rodadas" : ""}</small>
     </div>;
   })}</div>;
 }
