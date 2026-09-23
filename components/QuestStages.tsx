@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, SECRET_ROLES, formatClock } from "@/lib/gameplay";
 import type { GameplayState, GameplayTeamView, GamePhase, MissionSolution, MissionStep, Player, SecretRoleKey } from "@/lib/types";
 import type { SquadQuestSupabaseClient } from "@/lib/supabase";
+import { SketchPad } from "@/components/SketchPad";
 
 type GameplayRpcName =
   | "draw_squadquest_teams" | "start_squadquest_roles" | "start_squadquest_mission"
@@ -25,7 +26,7 @@ type Props = {
 type SolutionDraft = Required<MissionSolution>;
 
 const EMPTY_SOLUTION: SolutionDraft = {
-  name: "", for_user: "", problem: "", value: "", how_works: ["", "", ""], why_use: "", adaptation: "",
+  name: "", for_user: "", problem: "", value: "", how_works: ["", "", ""], why_use: "", adaptation: "", sketches: ["", "", ""],
 };
 const EMPTY_TEAMS: GameplayTeamView[] = [];
 
@@ -119,6 +120,8 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
   const [powerText, setPowerText] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [reflectionText, setReflectionText] = useState("");
+  const [chaosBurst, setChaosBurst] = useState(false);
+  const chaosSeenRef = useRef<boolean | null>(null);
 
   const refresh = useCallback(async () => {
     if (!supabase) return;
@@ -181,9 +184,23 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     if (!myTeam?.solution || !myTeam.id || solutionDirty[myTeam.id]) return;
     setSolutionDrafts((current) => ({
       ...current,
-      [myTeam.id]: { ...EMPTY_SOLUTION, ...myTeam.solution, how_works: [0, 1, 2].map((index) => myTeam.solution?.how_works?.[index] ?? "") },
+      [myTeam.id]: { ...EMPTY_SOLUTION, ...myTeam.solution, how_works: [0, 1, 2].map((index) => myTeam.solution?.how_works?.[index] ?? ""), sketches: [0, 1, 2].map((index) => { const sketch = myTeam.solution?.sketches?.[index]; return typeof sketch === "string" ? sketch : ""; }) },
     }));
   }, [myTeam?.id, myTeam?.solution, solutionDirty]);
+
+  const chaosPresent = isHost ? Boolean(state?.chaos_released_at) : Boolean(myTeam?.chaos);
+  useEffect(() => {
+    if (!state) return;
+    const previous = chaosSeenRef.current;
+    chaosSeenRef.current = chaosPresent;
+    if (previous === false && chaosPresent) setChaosBurst(true);
+  }, [state, chaosPresent]);
+
+  useEffect(() => {
+    if (!chaosBurst) return;
+    const timer = window.setTimeout(() => setChaosBurst(false), 1200);
+    return () => window.clearTimeout(timer);
+  }, [chaosBurst]);
 
   useEffect(() => {
     if (recipientId || !self.id) return;
@@ -265,7 +282,9 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
 
   if (!supabase) return <main className="page-shell quest-shell"><QuestHeader roomCode={roomCode} phase={roomPhase} onExit={onExit} /><div className="quest-content"><p>As fases seguintes precisam de conexão com Supabase. Volte ao lobby e configure o backend para continuar.</p></div></main>;
 
-  return <main className="page-shell quest-shell">
+  return <>
+    {chaosBurst && <div className="chaos-burst" aria-hidden="true" />}
+    <main className={`page-shell quest-shell ${chaosBurst ? "chaos-shake" : ""}`}>
     <div className="ambient-orb orb-one" /><div className="ambient-orb orb-two" />
     <QuestHeader roomCode={roomCode} phase={state?.phase ?? roomPhase} onExit={onExit} />
     {!state ? <section className="quest-content"><div className="sync-message"><i /><span>Sincronizando a missão…</span></div>{error && <div className="error-message">{error}</div>}</section> : <>
@@ -348,7 +367,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
                 <label className="quest-field"><span>Qual problema resolve?</span><input value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).problem} onChange={(event) => updateSolution("problem", event.target.value)} placeholder={myTeam.mission?.problem ?? "O problema central"} maxLength={240} /></label>
                 <TextArea label="Nossa proposta de valor" value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).value} onChange={(value) => updateSolution("value", value)} placeholder="Ajudamos [persona] a…" maxLength={400} />
                 <div className="quest-section-kicker">PROTÓTIPO RÁPIDO · TRÊS MOMENTOS</div>
-                <div className="quest-storyboard">{[0, 1, 2].map((index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><TextArea label={`Passo ${index + 1}`} value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).how_works[index] ?? ""} onChange={(value) => updateSolution("how_works", (solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).how_works.map((item, itemIndex) => itemIndex === index ? value : item))} placeholder={index === 0 ? "A pessoa começa por…" : "E então…"} maxLength={180} rows={2} /></div>)}</div>
+                <div className="quest-storyboard">{[0, 1, 2].map((index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><TextArea label={`Passo ${index + 1}`} value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).how_works[index] ?? ""} onChange={(value) => updateSolution("how_works", (solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).how_works.map((item, itemIndex) => itemIndex === index ? value : item))} placeholder={index === 0 ? "A pessoa começa por…" : "E então…"} maxLength={180} rows={2} /><SketchPad label={`Desenho do passo ${index + 1}`} value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).sketches[index] ?? ""} onChange={(next) => updateSolution("sketches", (solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).sketches.map((item, itemIndex) => itemIndex === index ? next : item))} /></div>)}</div>
                 <TextArea label="Por que alguém usaria isso?" value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).why_use} onChange={(value) => updateSolution("why_use", value)} placeholder="O que torna isso útil ou irresistível?" maxLength={300} />
                 {myTeam.step === "adapt" && <TextArea label="Como adaptamos o produto ao caos?" value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).adaptation} onChange={(value) => updateSolution("adaptation", value)} placeholder="O que mudou sem destruir a solução?" maxLength={300} />}
                 <button className="primary-button full-button" disabled={busy} type="submit">{solutionDirty[myTeam.id] ? "Salvar canvas compartilhado" : "Salvar alterações"}<span>↗</span></button>
@@ -413,7 +432,8 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
       {error && <div className="error-message quest-error" role="alert">{error}</div>}
     </>}
     <footer className="home-footer"><span>1 Game Master · até 6 jogadores · sem placar individual</span><span>SquadQuest · {PHASE_LABELS[state?.phase ?? roomPhase]}</span></footer>
-  </main>;
+    </main>
+  </>;
 }
 
 function BoardNotes({ label, notes, team, selectable = false, selected = [], onToggle }: {
@@ -436,5 +456,5 @@ function BoardNotes({ label, notes, team, selectable = false, selected = [], onT
 function SolutionSummary({ team }: { team: GameplayTeamView }) {
   const solution = team.solution;
   if (!solution) return <div className="quest-empty-note">A apresentação está sendo preparada.</div>;
-  return <div className="quest-solution-summary"><div className="quest-section-kicker">{solution.name || `Produto do time ${team.name}`}</div><h3>{solution.value || "Proposta de valor em construção"}</h3><p><strong>Para quem:</strong> {solution.for_user || team.mission?.persona || "Sua persona"}</p><p><strong>Problema:</strong> {solution.problem || team.mission?.problem || "O problema central"}</p><div className="quest-storyboard">{(solution.how_works ?? []).map((step, index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><p>{step || "…"}</p></div>)}</div><p><strong>Por que usariam:</strong> {solution.why_use || "…"}</p>{team.chaos && <div className="quest-chaos-card"><span>🔥 {team.chaos.title}</span><p>{team.chaos.text}</p><small>{solution.adaptation}</small></div>}</div>;
+  return <div className="quest-solution-summary"><div className="quest-section-kicker">{solution.name || `Produto do time ${team.name}`}</div><h3>{solution.value || "Proposta de valor em construção"}</h3><p><strong>Para quem:</strong> {solution.for_user || team.mission?.persona || "Sua persona"}</p><p><strong>Problema:</strong> {solution.problem || team.mission?.problem || "O problema central"}</p><div className="quest-storyboard">{(solution.how_works ?? []).map((step, index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><p>{step || "…"}</p><SketchPad label={`Desenho do passo ${index + 1}`} value={solution.sketches?.[index] ?? ""} readOnly /></div>)}</div><p><strong>Por que usariam:</strong> {solution.why_use || "…"}</p>{team.chaos && <div className="quest-chaos-card"><span>🔥 {team.chaos.title}</span><p>{team.chaos.text}</p><small>{solution.adaptation}</small></div>}</div>;
 }

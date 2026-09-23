@@ -22,6 +22,7 @@ export type MissionSolution = {
   how_works?: string[];
   why_use?: string;
   adaptation?: string;
+  sketches?: string[];
 };
 
 export type GameplayTeamView = {
