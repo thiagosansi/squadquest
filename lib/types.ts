@@ -25,6 +25,39 @@ export type MissionSolution = {
   sketches?: string[];
 };
 
+export type PowerChallengeReply = { player_id: string; name: string; avatar_id: string; content: string; round: number; created_at: string };
+
+/** Desafio de poder aberto, visto pelo integrante ou pelo detentor (migration 0010). */
+export type PowerChallengeView = {
+  id: string;
+  role_key: SecretRoleKey;
+  holder_player_id: string;
+  holder_name: string;
+  prompt: string;
+  round: 1 | 2;
+  opened_at: string;
+  deadline_at: string;
+  status: "open";
+  replies: PowerChallengeReply[];
+  my_reply_submitted: boolean;
+  i_am_holder: boolean;
+  expected_replies: number;
+};
+
+/** Resumo do desafio aberto para o Game Master. */
+export type PowerChallengeStatus = { role_key: SecretRoleKey; round: number; deadline_at: string; replies_count: number; expected_replies: number };
+
+/** Marca deixada no canvas por um desafio já resolvido. */
+export type PowerOutcome = {
+  id: string;
+  role_key: SecretRoleKey;
+  prompt: string;
+  status: "approved" | "unanswered";
+  holder_name: string;
+  round: number;
+  replies: Array<{ name: string; content: string }>;
+};
+
 export type GameplayTeamView = {
   id: string;
   name: string;
@@ -56,6 +89,9 @@ export type GameplayTeamView = {
   ideas_ready: boolean;
   decision_ready: boolean;
   solution_ready: boolean;
+  power_challenge?: PowerChallengeView | null;
+  power_challenge_status?: PowerChallengeStatus | null;
+  power_outcomes?: PowerOutcome[] | null;
 };
 
 export type GameplayState = {

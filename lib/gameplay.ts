@@ -68,11 +68,30 @@ export const POWER_WINDOWS: Record<SecretRoleKey, { steps: MissionStep[]; opensA
   customer_voice: { steps: ["build", "adapt"], opensAfterSeconds: 0, requiresValue: true, moment: "Construir, com a proposta de valor escrita" },
 };
 
+/** Rótulo da marca que um desafio aprovado deixa no canvas. */
+export const POWER_OUTCOME_LABELS: Record<SecretRoleKey, string> = {
+  visionary: "Visão 10x",
+  devils_advocate: "Risco reconhecido",
+  customer_voice: "Resposta ao cliente",
+};
+
+export const POWER_CHALLENGE_TITLES: Record<SecretRoleKey, string> = {
+  visionary: `Poder do ${SECRET_ROLES.visionary.name}`,
+  devils_advocate: `Poder do ${SECRET_ROLES.devils_advocate.name}`,
+  customer_voice: `Poder da ${SECRET_ROLES.customer_voice.name}`,
+};
+
 export const FINAL_VOTE_CATEGORIES = [
   { key: "buy", label: "Produto que eu realmente compraria", icon: "🛍️" },
   { key: "absurd", label: "Ideia mais absurda (no melhor sentido)", icon: "😂" },
   { key: "solution", label: "Solução mais criativa", icon: "💡" },
 ] as const;
+
+/** Segundos inteiros até um prazo ISO; datas inválidas ou já vencidas contam como 0. */
+export function secondsUntil(deadline: string, now: number): number {
+  const at = new Date(deadline).getTime();
+  return Number.isFinite(at) ? Math.max(0, Math.ceil((at - now) / 1000)) : 0;
+}
 
 export function formatClock(totalSeconds: number): string {
   const safeSeconds = Math.max(0, totalSeconds);

@@ -305,6 +305,48 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-timer-bonus { color: #bbaeff; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; }
 @keyframes power-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(243,160,106,0); } 50% { box-shadow: 0 0 0 6px rgba(243,160,106,.22); } }
 @media (prefers-reduced-motion: reduce) { .quest-power-box.last_call { animation: none; } }
+.quest-gm-timer .quest-gm-challenge { color: #f3c282; }
+.power-challenge-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; overflow: auto; background: rgba(9,8,18,.74); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.power-challenge { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 22px; display: grid; gap: 14px; border: 1px solid rgba(166,147,255,.5); border-radius: 14px; background: #17152a; box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(166,147,255,.12) inset; }
+.power-challenge-head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: start; }
+.power-challenge-head > div { min-width: 0; }
+.power-challenge-head .quest-section-kicker { margin-bottom: 5px; }
+.power-challenge-head h2 { margin: 0; color: #eae6f5; font-size: 18px; line-height: 1.2; }
+.power-challenge-head small { display: block; margin-top: 4px; color: #9a95ac; font-family: 'DM Mono', monospace; font-size: 9px; }
+.power-challenge-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; background: rgba(166,147,255,.14); font-size: 22px; }
+.power-challenge-clock { color: #e4dcff; font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; white-space: nowrap; }
+.power-challenge-clock.warn { color: #f3a06a; animation: power-pulse-text 1s ease-in-out infinite; }
+.power-challenge-clock.over { max-width: 130px; color: #f3a06a; font-size: 10px; line-height: 1.4; white-space: normal; text-align: right; }
+@keyframes power-pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .power-challenge-clock.warn { animation: none; } }
+.power-challenge-prompt { margin: 0; padding: 10px 14px; border-left: 3px solid var(--purple); border-radius: 0 8px 8px 0; color: #eae6f5; background: rgba(166,147,255,.07); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.power-challenge-count { color: #bbaeff; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .06em; }
+.power-challenge-replies { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.power-challenge-replies li { display: flex; gap: 9px; min-width: 0; padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,.035); }
+.power-challenge-replies li > div { min-width: 0; }
+.power-challenge-replies .mini-avatar { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 12px; }
+.power-challenge-replies strong { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; color: #d2cbea; font-size: 10px; }
+.power-challenge-replies strong em { color: #f3c282; font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+.power-challenge-replies p { margin: 3px 0 0; color: #e4e0ee; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.power-challenge-empty, .power-challenge-help, .power-challenge-wait { margin: 0; color: #9a95ac; font-size: 11px; line-height: 1.55; }
+.power-challenge-wait { color: #d6d0e2; }
+.power-challenge form { display: grid; gap: 10px; }
+.power-challenge form .quest-field small { color: #767286; font-family: 'DM Mono', monospace; font-size: 8px; font-weight: 400; text-align: right; }
+.power-challenge form > .primary-button { justify-content: center; }
+.power-challenge-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.power-challenge-actions > button { width: 100%; justify-content: center; }
+.power-challenge-actions > button:disabled, .power-challenge form > button:disabled { opacity: .5; cursor: default; }
+.power-challenge .error-message { margin: 0; }
+.quest-power-outcomes { display: grid; gap: 10px; margin-top: 17px; }
+.quest-power-outcome { margin: 0; padding: 14px; display: grid; gap: 7px; border-color: rgba(120,207,170,.3); background: rgba(120,207,170,.05); }
+.quest-power-outcome .quest-section-kicker { margin-bottom: 0; color: #78cfaa; }
+.quest-power-outcome.unanswered { border-color: rgba(255,138,138,.45); background: rgba(255,138,138,.05); }
+.quest-power-outcome.unanswered .quest-section-kicker { color: #ff8a8a; }
+.quest-power-outcome > em { color: #d6d0e2; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.quest-power-outcome p { margin: 0; color: #c9c2d9; font-size: 10px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.quest-power-outcome p strong { color: #eae6f5; }
+.quest-power-outcome small { color: #817c91; font-family: 'DM Mono', monospace; font-size: 8px; }
+.quest-solution-summary .quest-power-outcomes { margin: 14px 0; }
 .quest-power-feed { margin-top: 18px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,.07); }
 .quest-power-event { display: flex; gap: 8px; margin: 8px 0; padding: 10px; border-radius: 7px; color: #d6d0e2; background: rgba(255,255,255,.035); }
 .quest-power-event > span { color: #c6baff; font-family: 'DM Mono', monospace; font-size: 8px; }
@@ -387,4 +429,9 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
   .quest-storyboard-frame { min-height: 75px; }
   .quest-prompt-grid > div { grid-template-columns: 92px 1fr; }
   .quest-timer-row { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .power-challenge { padding: 18px 16px; }
+  .power-challenge-head { grid-template-columns: auto minmax(0,1fr); }
+  .power-challenge-clock { grid-column: 1 / -1; justify-self: start; }
+  .power-challenge-clock.over { max-width: none; text-align: left; }
+  .power-challenge-actions { grid-template-columns: 1fr; }
 }

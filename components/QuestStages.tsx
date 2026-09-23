@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, POWER_BONUS_SECONDS, POWER_WINDOWS, SECRET_ROLES, formatClock } from "@/lib/gameplay";
+import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, POWER_BONUS_SECONDS, POWER_WINDOWS, SECRET_ROLES, formatClock, secondsUntil } from "@/lib/gameplay";
 import type { GameplayState, GameplayTeamView, GamePhase, MissionSolution, MissionStep, Player, SecretRoleKey } from "@/lib/types";
 import type { SquadQuestSupabaseClient } from "@/lib/supabase";
 import { SketchPad } from "@/components/SketchPad";
 import { GameTrail } from "@/components/GameTrail";
+import { PowerChallenge, PowerOutcomes } from "@/components/PowerChallenge";
 
 type GameplayRpcName =
   | "draw_squadquest_teams" | "start_squadquest_roles" | "start_squadquest_mission"
@@ -13,7 +14,8 @@ type GameplayRpcName =
   | "update_squadquest_solution" | "advance_squadquest_mission" | "release_squadquest_chaos"
   | "use_squadquest_role_power" | "start_squadquest_pitches" | "advance_squadquest_pitch"
   | "submit_squadquest_final_vote" | "start_squadquest_reveal" | "start_squadquest_results"
-  | "start_squadquest_reflection" | "submit_squadquest_reflection" | "finish_squadquest_game";
+  | "start_squadquest_reflection" | "submit_squadquest_reflection" | "finish_squadquest_game"
+  | "reply_squadquest_power_challenge" | "resolve_squadquest_power_challenge";
 
 type Props = {
   roomId: string;
@@ -105,10 +107,12 @@ function GmStepTimer({ team, now }: { team: GameplayTeamView; now: number }) {
   const over = duration > 0 && elapsed >= duration;
   const progress = duration > 0 ? Math.min(100, Math.round((elapsed / duration) * 100)) : 0;
   const milestone = stepMilestone(team, now);
+  const challenge = team.power_challenge_status;
   return <div className={`quest-gm-timer ${over ? "over" : ""}`}>
     <div><span>⏱</span><strong>{over ? `+${formatClock(elapsed - duration)}` : formatClock(remaining)}</strong><small>{over ? "além do tempo sugerido" : "restantes na etapa"}</small></div>
     {milestone && <em>{milestone.label} {formatClock(milestone.seconds)}</em>}
     <em>Poderes {team.powers_used_count ?? 0}/{team.member_count}{bonus > 0 ? ` · +${formatClock(bonus)} poder` : ""}</em>
+    {challenge && <em className="quest-gm-challenge">⚡ Desafio · {SECRET_ROLES[challenge.role_key].name} · {formatClock(secondsUntil(challenge.deadline_at, now))} · {challenge.replies_count}/{challenge.expected_replies} responderam</em>}
     <div className="quest-gm-timer-bar"><i style={{ width: `${progress}%` }} /></div>
   </div>;
 }
@@ -308,8 +312,14 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     return { powersPending, timeOver: elapsed >= duration, releaseIn: Math.max(0, duration - elapsed) };
   }
 
+  /** Segundos restantes de um desafio de poder aberto no time; 0 quando não há desafio ou o prazo venceu. */
+  function challengeRemaining(team: GameplayTeamView, now: number): number {
+    return team.power_challenge_status ? secondsUntil(team.power_challenge_status.deadline_at, now) : 0;
+  }
+
   function canAdvanceTeam(team: GameplayTeamView, now: number): boolean {
     if (!team.step) return false;
+    if (challengeRemaining(team, now) > 0) return false;
     if (team.step === "understand") return team.hypotheses_ready;
     if (team.step === "diverge") return team.ideas_ready;
     if (team.step === "decide") return team.decision_ready;
@@ -322,6 +332,8 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
 
   function advanceHint(team: GameplayTeamView, now: number): string {
     if (!team.step) return "Etapa em andamento";
+    const challengeSeconds = challengeRemaining(team, now);
+    if (challengeSeconds > 0) return `Desafio de poder em andamento · ${formatClock(challengeSeconds)}`;
     if (team.step === "understand") return team.hypotheses_ready ? "Cada pessoa registrou uma hipótese" : `${team.hypothesis_count} hipóteses coletivas · falta cobrir o time todo`;
     if (team.step === "diverge") return `${team.idea_count}/${team.member_count * 2} ideias · ${team.idea_ballots}/${team.member_count} votos enviados`;
     if (team.step === "decide") return team.selected_idea_id ? "Finalista escolhido pelo time" : team.decision_ready ? "Tempo esgotado · o sistema vai desempatar" : "O time decide entre as duas finalistas";
@@ -345,6 +357,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
 
   return <>
     {chaosBurst && <div className="chaos-burst" aria-hidden="true" />}
+    {myTeam?.power_challenge && !isHost && <PowerChallenge challenge={myTeam.power_challenge} roomId={roomId} now={now} busy={busy} error={error} execute={execute} />}
     <main className={`page-shell quest-shell ${chaosBurst ? "chaos-shake" : ""}`}>
     <div className="ambient-orb orb-one" /><div className="ambient-orb orb-two" />
     <QuestHeader roomCode={roomCode} phase={state?.phase ?? roomPhase} onExit={onExit} />
@@ -432,6 +445,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
               </>}
 
               {(myTeam.step === "build" || myTeam.step === "adapt") && selectedIdea && <div className="quest-mission-card quest-chosen-idea"><div className="quest-section-kicker">IDEIA ESCOLHIDA PELO TIME</div><strong>{selectedIdea.content}</strong>{typeof selectedIdea.votes_count === "number" && <small>{selectedIdea.votes_count} votos</small>}</div>}
+              {(myTeam.step === "build" || myTeam.step === "adapt") && <PowerOutcomes outcomes={myTeam.power_outcomes} />}
               {(myTeam.step === "build" || myTeam.step === "adapt") && <form className="quest-solution-form" onSubmit={saveSolution}>
                 <div className="quest-section-kicker">CANVAS COLABORATIVO · O TIME EDITA JUNTO</div>
                 <label className="quest-field"><span>Nome do produto</span><input value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).name} onChange={(event) => updateSolution("name", event.target.value)} placeholder="Um nome que dê vontade de conhecer" maxLength={80} /></label>
@@ -534,5 +548,5 @@ function BoardNotes({ label, notes, team, selectable = false, selected = [], onT
 function SolutionSummary({ team }: { team: GameplayTeamView }) {
   const solution = team.solution;
   if (!solution) return <div className="quest-empty-note">A apresentação está sendo preparada.</div>;
-  return <div className="quest-solution-summary"><div className="quest-section-kicker">{solution.name || `Produto do time ${team.name}`}</div><h3>{solution.value || "Proposta de valor em construção"}</h3><p><strong>Para quem:</strong> {solution.for_user || team.mission?.persona || "Sua persona"}</p><p><strong>Problema:</strong> {solution.problem || team.mission?.problem || "O problema central"}</p><div className="quest-storyboard">{(solution.how_works ?? []).map((step, index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><p>{step || "…"}</p><SketchPad label={`Desenho do passo ${index + 1}`} value={solution.sketches?.[index] ?? ""} readOnly /></div>)}</div><p><strong>Por que usariam:</strong> {solution.why_use || "…"}</p>{team.chaos && <div className="quest-chaos-card"><span>🔥 {team.chaos.title}</span><p>{team.chaos.text}</p><small>{solution.adaptation}</small></div>}</div>;
+  return <div className="quest-solution-summary"><div className="quest-section-kicker">{solution.name || `Produto do time ${team.name}`}</div><h3>{solution.value || "Proposta de valor em construção"}</h3><p><strong>Para quem:</strong> {solution.for_user || team.mission?.persona || "Sua persona"}</p><p><strong>Problema:</strong> {solution.problem || team.mission?.problem || "O problema central"}</p><div className="quest-storyboard">{(solution.how_works ?? []).map((step, index) => <div className="quest-storyboard-frame" key={index}><span>{index + 1}</span><p>{step || "…"}</p><SketchPad label={`Desenho do passo ${index + 1}`} value={solution.sketches?.[index] ?? ""} readOnly /></div>)}</div><PowerOutcomes outcomes={team.power_outcomes} /><p><strong>Por que usariam:</strong> {solution.why_use || "…"}</p>{team.chaos && <div className="quest-chaos-card"><span>🔥 {team.chaos.title}</span><p>{team.chaos.text}</p><small>{solution.adaptation}</small></div>}</div>;
 }

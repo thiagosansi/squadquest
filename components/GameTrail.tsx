@@ -1,6 +1,6 @@
 "use client";
 
-import { MISSION_STEPS, POWER_BONUS_SECONDS, formatClock } from "@/lib/gameplay";
+import { MISSION_STEPS, POWER_BONUS_SECONDS, formatClock, secondsUntil } from "@/lib/gameplay";
 import type { GamePhase, GameplayTeamView, IdentityStep } from "@/lib/types";
 
 export type GameTrailProps = {
@@ -61,6 +61,8 @@ function plural(count: number, singular: string, pluralForm: string): string {
 /** Motivo pelo qual o GM ainda não consegue avançar o time (espelha canAdvanceTeam/advanceHint de QuestStages). */
 export function teamBlocker(team: GameplayTeamView, chaosReleased: boolean, now: number): string | null {
   if (!team.step || team.step === "complete") return null;
+  const challengeSeconds = team.power_challenge_status ? secondsUntil(team.power_challenge_status.deadline_at, now) : 0;
+  if (challengeSeconds > 0) return `desafio de poder em andamento · ${formatClock(challengeSeconds)}`;
   if (team.step === "understand") return team.hypotheses_ready ? null : `${team.hypothesis_count} hipóteses · falta cobrir o time`;
   if (team.step === "diverge") return team.ideas_ready ? null : `${team.idea_count}/${team.member_count * 2} ideias · ${team.idea_ballots}/${team.member_count} votos`;
   if (team.step === "decide") return team.decision_ready ? null : "time decidindo a finalista";
