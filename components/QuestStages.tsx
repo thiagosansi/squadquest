@@ -128,6 +128,45 @@ function TextArea({ label, value, onChange, placeholder, maxLength = 300, rows =
   return <label className="quest-field"><span>{label}</span><textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} maxLength={maxLength} rows={rows} /></label>;
 }
 
+type PowerFormProps = {
+  role: (typeof SECRET_ROLES)[SecretRoleKey];
+  roleKey: SecretRoleKey;
+  text: string;
+  onText: (next: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  busy: boolean;
+};
+
+/** Formulário de uso do poder; o mesmo `text` alimenta o card do board e o modal PowerPrompt. */
+function PowerForm({ role, roleKey, text, onText, onSubmit, busy }: PowerFormProps) {
+  return <form className="quest-power-form" onSubmit={onSubmit}>
+    <div className="quest-section-kicker">USAR PODER · UMA VEZ NA PARTIDA</div>
+    <TextArea label={role.prompt} value={text} onChange={onText} placeholder={POWER_PLACEHOLDERS[roleKey]} maxLength={400} />
+    <button className="primary-button" disabled={busy || text.trim().length < 8} type="submit">Acionar habilidade <span>✦</span></button>
+  </form>;
+}
+
+/** Modal que avisa o jogador quando a janela do poder abre (ou entra no último minuto). "Agora não" fecha sem usar. */
+function PowerPrompt({ status, onDismiss, ...form }: PowerFormProps & { status: "open" | "last_call"; onDismiss: () => void }) {
+  const lastCall = status === "last_call";
+  return <div className="power-challenge-backdrop" role="dialog" aria-modal="true" aria-labelledby="power-prompt-title">
+    <section className={`power-challenge power-prompt ${lastCall ? "last_call" : ""}`}>
+      <header className="power-challenge-head">
+        <span className="power-challenge-icon" aria-hidden="true">{form.role.icon}</span>
+        <div>
+          <div className={`quest-section-kicker ${lastCall ? "power-prompt-kicker-warn" : ""}`}>{lastCall ? "⚠ ÚLTIMO MOMENTO" : "✦ SEU PODER ESTÁ LIBERADO"}</div>
+          <h2 id="power-prompt-title">{form.role.name}</h2>
+        </div>
+      </header>
+      <p className="power-prompt-power">{form.role.power}</p>
+      <small className="power-prompt-moment">Momento: {POWER_WINDOWS[form.roleKey].moment}</small>
+      <p className="power-challenge-help">Usar o poder abre um desafio de 90 s para o time e soma 1 minuto ao relógio.</p>
+      <PowerForm {...form} />
+      <button className="secondary-button power-prompt-dismiss" onClick={onDismiss} type="button">Agora não</button>
+    </section>
+  </div>;
+}
+
 function QuestHeader({ roomCode, phase, onExit }: { roomCode: string; phase: GamePhase; onExit: () => void }) {
   return <header className="topbar quest-topbar">
     <div className="brand"><span className="brand-mark">✦</span><span>SquadQuest</span></div>
@@ -171,6 +210,11 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
   const [solutionDirty, setSolutionDirty] = useState<Record<string, boolean>>({});
   const [powerOpen, setPowerOpen] = useState(false);
   const [powerText, setPowerText] = useState("");
+  const [powerPromptOpen, setPowerPromptOpen] = useState(false);
+  /** Janela (time+etapa+papel) já anunciada pelo modal e se o aviso de último momento já foi mostrado. */
+  const powerPromptSeenRef = useRef<{ key: string; lastCallShown: boolean } | null>(null);
+  /** Último status observado da janela do poder, com a chave; null na montagem (não dispara). */
+  const powerStatusSeenRef = useRef<{ key: string; status: PowerWindowState["status"] } | null>(null);
   const [recipientId, setRecipientId] = useState("");
   const [reflectionText, setReflectionText] = useState("");
   const [chaosBurst, setChaosBurst] = useState(false);
@@ -256,6 +300,40 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     return () => window.clearTimeout(timer);
   }, [chaosBurst]);
 
+  const powerPromptKey = myTeam?.step && state?.my_role ? `${myTeam.id}:${myTeam.step}:${state.my_role}` : null;
+  const powerStatus = myPowerWindow?.status ?? null;
+  const myPowerUsed = Boolean(state?.my_power_used);
+  useEffect(() => {
+    if (isHost || !powerPromptKey || !powerStatus) return;
+    if (myPowerUsed) {
+      setPowerPromptOpen(false);
+      return;
+    }
+    const last = powerStatusSeenRef.current;
+    powerStatusSeenRef.current = { key: powerPromptKey, status: powerStatus };
+    // Montagem (ou recarga com a janela já aberta): só registra, sem abrir.
+    if (!last) return;
+    // Etapa nova = janela nova: o status anterior conta como fechado, mesmo que a etapa anterior também estivesse aberta.
+    const previous = last.key === powerPromptKey ? last.status : "closed";
+    if (previous === powerStatus) return;
+    const seen = powerPromptSeenRef.current?.key === powerPromptKey ? powerPromptSeenRef.current : null;
+    if (powerStatus === "open") {
+      if ((previous === "upcoming" || previous === "closed") && !seen) {
+        powerPromptSeenRef.current = { key: powerPromptKey, lastCallShown: false };
+        setPowerPromptOpen(true);
+      }
+      return;
+    }
+    if (powerStatus === "last_call") {
+      if (!seen?.lastCallShown) {
+        powerPromptSeenRef.current = { key: powerPromptKey, lastCallShown: true };
+        setPowerPromptOpen(true);
+      }
+      return;
+    }
+    setPowerPromptOpen(false);
+  }, [powerStatus, powerPromptKey, myPowerUsed, isHost]);
+
   useEffect(() => {
     if (recipientId || !self.id) return;
     const firstAvailable = participants.find((person) => person.id !== self.id);
@@ -290,7 +368,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
   function submitPower(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void execute("use_squadquest_role_power", { target_room_id: roomId, action_text: powerText.trim() })
-      .then((success) => { if (success) { setPowerText(""); setPowerOpen(false); } });
+      .then((success) => { if (success) { setPowerText(""); setPowerOpen(false); setPowerPromptOpen(false); } });
   }
 
   function submitReflection(event: FormEvent<HTMLFormElement>) {
@@ -353,11 +431,29 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     </div>;
   }
 
+  const powerPinned = Boolean(myPowerWindow && (myPowerWindow.status === "open" || myPowerWindow.status === "last_call") && !state?.my_power_used);
+
+  /** Card do poder secreto. Fixado no topo do board (pinned) enquanto a janela está aberta e o poder não foi usado. */
+  function renderPowerBox(pinned: boolean) {
+    if (!myRole || !state?.my_role || !myPowerWindow || state.my_power_used || !myTeam || myTeam.step === "complete") return null;
+    const roleKey = state.my_role;
+    return <div className={`quest-power-box ${myPowerWindow.status} ${pinned ? "pinned" : ""}`}>
+      <div className="quest-section-kicker">SEU PODER SECRETO</div>
+      {myPowerWindow.status === "upcoming" && <><p>{myRole.power}</p><small>{myPowerWindow.needsValue ? "Escreva a proposta de valor para liberar" : `Abre em ${formatClock(myPowerWindow.opensIn ?? 0)}`} · {POWER_WINDOWS[roleKey].moment}</small></>}
+      {myPowerWindow.status === "closed" && <><p>{myRole.power}</p><small>Vale em: {POWER_WINDOWS[roleKey].moment}</small></>}
+      {(myPowerWindow.status === "open" || myPowerWindow.status === "last_call") && <>
+        <strong className="quest-power-moment">{myPowerWindow.status === "last_call" ? "⚠ Último momento" : "✦ Seu momento é agora"}</strong>
+        {!powerOpen ? <button className="secondary-button" onClick={() => setPowerOpen(true)} type="button">{myRole.power} <span>✦</span></button> : <PowerForm role={myRole} roleKey={roleKey} text={powerText} onText={setPowerText} onSubmit={submitPower} busy={busy} />}
+      </>}
+    </div>;
+  }
+
   if (!supabase) return <main className="page-shell quest-shell"><QuestHeader roomCode={roomCode} phase={roomPhase} onExit={onExit} /><div className="quest-content"><p>As fases seguintes precisam de conexão com Supabase. Volte ao lobby e configure o backend para continuar.</p></div></main>;
 
   return <>
     {chaosBurst && <div className="chaos-burst" aria-hidden="true" />}
     {myTeam?.power_challenge && !isHost && <PowerChallenge challenge={myTeam.power_challenge} roomId={roomId} now={now} busy={busy} error={error} execute={execute} />}
+    {powerPromptOpen && !isHost && !myTeam?.power_challenge && myRole && state?.my_role && powerPinned && (myPowerWindow?.status === "open" || myPowerWindow?.status === "last_call") && <PowerPrompt status={myPowerWindow.status} role={myRole} roleKey={state.my_role} text={powerText} onText={setPowerText} onSubmit={submitPower} busy={busy} onDismiss={() => setPowerPromptOpen(false)} />}
     <main className={`page-shell quest-shell ${chaosBurst ? "chaos-shake" : ""}`}>
     <div className="ambient-orb orb-one" /><div className="ambient-orb orb-two" />
     <QuestHeader roomCode={roomCode} phase={state?.phase ?? roomPhase} onExit={onExit} />
@@ -408,6 +504,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
           <div className="quest-timer-row"><div><span>⏱</span><strong>{formatClock(remainingForStep(myTeam, now))}</strong>{powerBonusSeconds(myTeam) > 0 && <b className="quest-timer-bonus">+{formatClock(powerBonusSeconds(myTeam))} poder</b>}<small>tempo sugerido nesta etapa</small></div><span>O Game Master conduz as transições</span></div>
           <div className="quest-mission-layout">
             <section className="quest-workspace panel-card">
+              {powerPinned && renderPowerBox(true)}
               <TeamMissionCard team={myTeam} />
               <div className="quest-team-members"><TeamRoster team={myTeam} /></div>
 
@@ -460,15 +557,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
               </form>}
 
               {myTeam.power_actions?.length ? <div className="quest-power-feed"><div className="quest-section-kicker">O TIME ACIONOU</div>{myTeam.power_actions.map((action, index) => <div className="quest-power-event" key={`${action.created_at}-${index}`}><span>{action.avatar_id}</span><p><strong>{action.name}</strong> · {action.content}</p></div>)}</div> : null}
-              {myRole && state.my_role && myPowerWindow && !state.my_power_used && myTeam.step !== "complete" && <div className={`quest-power-box ${myPowerWindow.status}`}>
-                <div className="quest-section-kicker">SEU PODER SECRETO</div>
-                {myPowerWindow.status === "upcoming" && <><p>{myRole.power}</p><small>{myPowerWindow.needsValue ? "Escreva a proposta de valor para liberar" : `Abre em ${formatClock(myPowerWindow.opensIn ?? 0)}`} · {POWER_WINDOWS[state.my_role].moment}</small></>}
-                {myPowerWindow.status === "closed" && <><p>{myRole.power}</p><small>Vale em: {POWER_WINDOWS[state.my_role].moment}</small></>}
-                {(myPowerWindow.status === "open" || myPowerWindow.status === "last_call") && <>
-                  <strong className="quest-power-moment">{myPowerWindow.status === "last_call" ? "⚠ Último momento" : "✦ Seu momento é agora"}</strong>
-                  {!powerOpen ? <button className="secondary-button" onClick={() => setPowerOpen(true)} type="button">{myRole.power} <span>✦</span></button> : <form onSubmit={submitPower}><div className="quest-section-kicker">USAR PODER · UMA VEZ NA PARTIDA</div><TextArea label={myRole.prompt} value={powerText} onChange={setPowerText} placeholder={POWER_PLACEHOLDERS[state.my_role]} maxLength={400} /><button className="primary-button" disabled={busy || powerText.trim().length < 8} type="submit">Acionar habilidade <span>✦</span></button></form>}
-                </>}
-              </div>}
+              {!powerPinned && renderPowerBox(false)}
             </section>
             <aside className="quest-side-panel panel-card"><div className="quest-section-kicker">SUA EQUIPE</div><TeamRoster team={myTeam} /><div className="quest-step-list">{(["understand", "diverge", "decide", "build", ...(myTeam.chaos ? ["adapt"] : [])] as MissionStep[]).map((step) => <div className={myTeam.step === step ? "active" : myTeam.step === "complete" || (myTeam.step === "adapt" && step !== "adapt") ? "done" : ""} key={step}><span>{MISSION_STEPS[step].icon}</span><small>{MISSION_STEPS[step].label}</small></div>)}</div><p>Falem no Meet/Teams/Discord. O SquadQuest mantém o desafio, o canvas e o ritmo sincronizados.</p></aside>
           </div>

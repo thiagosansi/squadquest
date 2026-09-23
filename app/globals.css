@@ -305,6 +305,15 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-timer-bonus { color: #bbaeff; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; }
 @keyframes power-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(243,160,106,0); } 50% { box-shadow: 0 0 0 6px rgba(243,160,106,.22); } }
 @media (prefers-reduced-motion: reduce) { .quest-power-box.last_call { animation: none; } }
+.quest-power-box.pinned { margin-top: 0; margin-bottom: 16px; border-width: 2px; }
+.quest-power-box.pinned.open { box-shadow: 0 0 0 1px rgba(166,147,255,.2) inset, 0 10px 30px rgba(166,147,255,.14); }
+.quest-power-form { display: grid; gap: 10px; }
+.quest-power-form > button { width: 100%; justify-content: center; }
+.power-prompt.last_call { border-color: rgba(245,177,97,.6); box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(245,177,97,.16) inset; }
+.power-prompt-kicker-warn { color: #f3c282; }
+.power-prompt-power { margin: 0; color: #eae6f5; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.power-prompt-moment { color: #9a95ac; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .04em; }
+.power-prompt-dismiss { width: 100%; justify-content: center; }
 .quest-gm-timer .quest-gm-challenge { color: #f3c282; }
 .power-challenge-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; overflow: auto; background: rgba(9,8,18,.74); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .power-challenge { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 22px; display: grid; gap: 14px; border: 1px solid rgba(166,147,255,.5); border-radius: 14px; background: #17152a; box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(166,147,255,.12) inset; }
