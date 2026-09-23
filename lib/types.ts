@@ -49,6 +49,8 @@ export type GameplayTeamView = {
   idea_count: number;
   idea_ballots: number;
   member_count: number;
+  step_power_count?: number;
+  powers_used_count?: number;
   solution_ballots: number;
   hypotheses_ready: boolean;
   ideas_ready: boolean;

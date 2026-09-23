@@ -60,6 +60,14 @@ export const MISSION_STEPS: Record<MissionStep, { label: string; icon: string; m
   },
 };
 
+export const POWER_BONUS_SECONDS = 60;
+
+export const POWER_WINDOWS: Record<SecretRoleKey, { steps: MissionStep[]; opensAfterSeconds: number; requiresValue: boolean; moment: string }> = {
+  visionary: { steps: ["diverge"], opensAfterSeconds: 120, requiresValue: false, moment: "Divergir, depois da escrita silenciosa" },
+  devils_advocate: { steps: ["decide"], opensAfterSeconds: 0, requiresValue: false, moment: "Decidir, entre as duas finalistas" },
+  customer_voice: { steps: ["build", "adapt"], opensAfterSeconds: 0, requiresValue: true, moment: "Construir, com a proposta de valor escrita" },
+};
+
 export const FINAL_VOTE_CATEGORIES = [
   { key: "buy", label: "Produto que eu realmente compraria", icon: "🛍️" },
   { key: "absurd", label: "Ideia mais absurda (no melhor sentido)", icon: "😂" },

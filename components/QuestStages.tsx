@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, SECRET_ROLES, formatClock } from "@/lib/gameplay";
+import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, POWER_BONUS_SECONDS, POWER_WINDOWS, SECRET_ROLES, formatClock } from "@/lib/gameplay";
 import type { GameplayState, GameplayTeamView, GamePhase, MissionSolution, MissionStep, Player, SecretRoleKey } from "@/lib/types";
 import type { SquadQuestSupabaseClient } from "@/lib/supabase";
 import { SketchPad } from "@/components/SketchPad";
@@ -51,8 +51,17 @@ function teamMembers(teams: GameplayTeamView[]): GameplayTeamView["members"] {
   return teams.flatMap((team) => team.members);
 }
 
+function powerBonusSeconds(team: GameplayTeamView): number {
+  return Math.max(0, team.step_power_count ?? 0) * POWER_BONUS_SECONDS;
+}
+
 function durationForStep(step: MissionStep): number {
   return MISSION_STEPS[step].minutes * 60;
+}
+
+function durationWithBonus(team: GameplayTeamView): number {
+  if (!team.step) return 0;
+  return durationForStep(team.step) + powerBonusSeconds(team);
 }
 
 function elapsedForStep(team: GameplayTeamView, now: number): number {
@@ -63,7 +72,18 @@ function elapsedForStep(team: GameplayTeamView, now: number): number {
 
 function remainingForStep(team: GameplayTeamView, now: number): number {
   if (!team.step) return 0;
-  return Math.max(0, durationForStep(team.step) - elapsedForStep(team, now));
+  return Math.max(0, durationWithBonus(team) - elapsedForStep(team, now));
+}
+
+type PowerWindowState = { status: "closed" | "upcoming" | "open" | "last_call"; opensIn?: number; needsValue?: boolean };
+
+function powerWindow(team: GameplayTeamView, role: SecretRoleKey, now: number, solutionValue: string): PowerWindowState {
+  const spec = POWER_WINDOWS[role];
+  if (!team.step || !spec.steps.includes(team.step)) return { status: "closed" };
+  const elapsed = elapsedForStep(team, now);
+  if (elapsed < spec.opensAfterSeconds) return { status: "upcoming", opensIn: spec.opensAfterSeconds - elapsed };
+  if (spec.requiresValue && !solutionValue.trim()) return { status: "upcoming", needsValue: true };
+  return { status: remainingForStep(team, now) <= 60 ? "last_call" : "open" };
 }
 
 function stepMilestone(team: GameplayTeamView, now: number): { label: string; seconds: number } | null {
@@ -78,7 +98,8 @@ function stepMilestone(team: GameplayTeamView, now: number): { label: string; se
 function GmStepTimer({ team, now }: { team: GameplayTeamView; now: number }) {
   if (!team.step || team.step === "complete") return null;
   const elapsed = elapsedForStep(team, now);
-  const duration = durationForStep(team.step);
+  const duration = durationWithBonus(team);
+  const bonus = powerBonusSeconds(team);
   const remaining = remainingForStep(team, now);
   const over = duration > 0 && elapsed >= duration;
   const progress = duration > 0 ? Math.min(100, Math.round((elapsed / duration) * 100)) : 0;
@@ -86,6 +107,7 @@ function GmStepTimer({ team, now }: { team: GameplayTeamView; now: number }) {
   return <div className={`quest-gm-timer ${over ? "over" : ""}`}>
     <div><span>⏱</span><strong>{over ? `+${formatClock(elapsed - duration)}` : formatClock(remaining)}</strong><small>{over ? "além do tempo sugerido" : "restantes na etapa"}</small></div>
     {milestone && <em>{milestone.label} {formatClock(milestone.seconds)}</em>}
+    <em>Poderes {team.powers_used_count ?? 0}/{team.member_count}{bonus > 0 ? ` · +${formatClock(bonus)} poder` : ""}</em>
     <div className="quest-gm-timer-bar"><i style={{ width: `${progress}%` }} /></div>
   </div>;
 }
@@ -203,6 +225,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
   const selectedIdea = myTeam?.selected_idea_id ? (myTeam.ideas?.find((idea) => idea.id === myTeam.selected_idea_id) ?? myTeam.finalists?.find((idea) => idea.id === myTeam.selected_idea_id) ?? null) : null;
   const participants = useMemo(() => teamMembers(teams), [teams]);
   const myRole = state?.my_role ? SECRET_ROLES[state.my_role] : null;
+  const myPowerWindow = myTeam && state?.my_role ? powerWindow(myTeam, state.my_role, now, (solutionDrafts[myTeam.id] ?? myTeam.solution)?.value ?? "") : null;
   const currentPitch = teams.find((team) => team.pitch_order === state?.pitch_index) ?? null;
   const isHost = self.kind === "host";
 
@@ -277,21 +300,32 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
   }
 
   const completedPlayers = teams.reduce((count, team) => count + team.member_count, 0);
-  function canAdvanceTeam(team: GameplayTeamView): boolean {
+  function powerGate(team: GameplayTeamView, now: number): { powersPending: number; timeOver: boolean; releaseIn: number } {
+    const powersPending = Math.max(0, team.member_count - (team.powers_used_count ?? 0));
+    const elapsed = elapsedForStep(team, now);
+    const duration = durationWithBonus(team);
+    return { powersPending, timeOver: elapsed >= duration, releaseIn: Math.max(0, duration - elapsed) };
+  }
+
+  function canAdvanceTeam(team: GameplayTeamView, now: number): boolean {
     if (!team.step) return false;
     if (team.step === "understand") return team.hypotheses_ready;
     if (team.step === "diverge") return team.ideas_ready;
     if (team.step === "decide") return team.decision_ready;
-    if (team.step === "build") return Boolean(state?.chaos_released_at) && !team.chaos && team.solution_ready;
-    if (team.step === "adapt") return team.solution_ready;
+    const gate = powerGate(team, now);
+    const powersOk = gate.powersPending === 0 || gate.timeOver;
+    if (team.step === "build") return powersOk && Boolean(state?.chaos_released_at) && !team.chaos && team.solution_ready;
+    if (team.step === "adapt") return powersOk && team.solution_ready;
     return false;
   }
 
-  function advanceHint(team: GameplayTeamView): string {
+  function advanceHint(team: GameplayTeamView, now: number): string {
     if (!team.step) return "Etapa em andamento";
     if (team.step === "understand") return team.hypotheses_ready ? "Cada pessoa registrou uma hipótese" : `${team.hypothesis_count} hipóteses coletivas · falta cobrir o time todo`;
     if (team.step === "diverge") return `${team.idea_count}/${team.member_count * 2} ideias · ${team.idea_ballots}/${team.member_count} votos enviados`;
     if (team.step === "decide") return team.selected_idea_id ? "Finalista escolhido pelo time" : team.decision_ready ? "Tempo esgotado · o sistema vai desempatar" : "O time decide entre as duas finalistas";
+    const gate = powerGate(team, now);
+    if ((team.step === "build" || team.step === "adapt") && gate.powersPending > 0 && !gate.timeOver) return `Faltam ${gate.powersPending} ${gate.powersPending === 1 ? "poder" : "poderes"} · liberação em ${formatClock(gate.releaseIn)}`;
     if (team.step === "build") return team.chaos ? "A equipe precisa adaptar antes de concluir" : !state?.chaos_released_at ? "A carta de caos precisa ser lançada antes de concluir" : "Canvas compartilhado: nome, proposta e protótipo";
     if (team.step === "adapt") return "A adaptação à carta de caos precisa estar descrita";
     return "Concluído";
@@ -337,17 +371,17 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
             <GmStepTimer team={team} now={now} />
             <TeamRoster team={team} />
             <TeamMissionCard team={team} />
-            <div className="quest-progress-copy">{advanceHint(team)}</div>
+            <div className="quest-progress-copy">{advanceHint(team, now)}</div>
             <div className="quest-gm-buttons">
               {team.step === "build" && !state.chaos_released_at && <button className="secondary-button" disabled={busy || elapsedForStep(team, now) < 240} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: team.id })} type="button">{elapsedForStep(team, now) < 240 ? `🔥 Caos em ${formatClock(240 - elapsedForStep(team, now))}` : "🔥 Lançar caos aqui"}</button>}
-              <button className="primary-button" disabled={busy || !canAdvanceTeam(team)} onClick={() => void execute("advance_squadquest_mission", { target_room_id: roomId, target_team_id: team.id })} type="button">{team.step === "complete" ? "Missão concluída" : `Avançar ${team.name}`} <span>→</span></button>
+              <button className="primary-button" disabled={busy || !canAdvanceTeam(team, now)} onClick={() => void execute("advance_squadquest_mission", { target_room_id: roomId, target_team_id: team.id })} type="button">{team.step === "complete" ? "Missão concluída" : `Avançar ${team.name}`} <span>→</span></button>
             </div>
           </article>)}</div>
           {!state.chaos_released_at && teams.some((team) => team.step === "build") && <div className="quest-host-action panel-card chaos-wide"><div><strong>🔥 Carta de caos</strong><p>Escolha um time acima ou lance a mesma carta para os dois. Cada equipe precisa adaptar a solução antes de apresentar.</p></div><button className="secondary-button" disabled={busy || !teams.every((team) => team.step === "build" && elapsedForStep(team, now) >= 240)} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: null })} type="button">Lançar para os dois times</button></div>}
           <div className="quest-host-action panel-card"><p>Quando os dois times concluírem, você sorteia quem apresenta primeiro.</p><button className="primary-button" disabled={busy || !teams.length || teams.some((team) => team.step !== "complete")} onClick={() => void execute("start_squadquest_pitches", { target_room_id: roomId })} type="button">Começar os pitches <span>→</span></button></div>
         </> : myTeam?.step ? <>
           <div className="quest-heading"><div className="eyebrow"><span /> MISSÃO EM EQUIPE · TIME {myTeam.name.toUpperCase()}</div><h1>{MISSION_STEPS[myTeam.step].icon} {MISSION_STEPS[myTeam.step].label}<br /><em>mão na massa.</em></h1><p>{MISSION_STEPS[myTeam.step].instruction}</p></div>
-          <div className="quest-timer-row"><div><span>⏱</span><strong>{formatClock(remainingForStep(myTeam, now))}</strong><small>tempo sugerido nesta etapa</small></div><span>O Game Master conduz as transições</span></div>
+          <div className="quest-timer-row"><div><span>⏱</span><strong>{formatClock(remainingForStep(myTeam, now))}</strong>{powerBonusSeconds(myTeam) > 0 && <b className="quest-timer-bonus">+{formatClock(powerBonusSeconds(myTeam))} poder</b>}<small>tempo sugerido nesta etapa</small></div><span>O Game Master conduz as transições</span></div>
           <div className="quest-mission-layout">
             <section className="quest-workspace panel-card">
               <TeamMissionCard team={myTeam} />
@@ -401,8 +435,14 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
               </form>}
 
               {myTeam.power_actions?.length ? <div className="quest-power-feed"><div className="quest-section-kicker">O TIME ACIONOU</div>{myTeam.power_actions.map((action, index) => <div className="quest-power-event" key={`${action.created_at}-${index}`}><span>{action.avatar_id}</span><p><strong>{action.name}</strong> · {action.content}</p></div>)}</div> : null}
-              {myRole && !state.my_power_used && myTeam.step !== "complete" && <div className="quest-power-box">
-                {!powerOpen ? <button className="secondary-button" onClick={() => setPowerOpen(true)} type="button">{myRole.power} <span>✦</span></button> : <form onSubmit={submitPower}><div className="quest-section-kicker">USAR PODER · UMA VEZ NA PARTIDA</div><TextArea label={myRole.prompt} value={powerText} onChange={setPowerText} placeholder={state.my_role ? POWER_PLACEHOLDERS[state.my_role] : ""} maxLength={400} /><button className="primary-button" disabled={busy || powerText.trim().length < 8} type="submit">Acionar habilidade <span>✦</span></button></form>}
+              {myRole && state.my_role && myPowerWindow && !state.my_power_used && myTeam.step !== "complete" && <div className={`quest-power-box ${myPowerWindow.status}`}>
+                <div className="quest-section-kicker">SEU PODER SECRETO</div>
+                {myPowerWindow.status === "upcoming" && <><p>{myRole.power}</p><small>{myPowerWindow.needsValue ? "Escreva a proposta de valor para liberar" : `Abre em ${formatClock(myPowerWindow.opensIn ?? 0)}`} · {POWER_WINDOWS[state.my_role].moment}</small></>}
+                {myPowerWindow.status === "closed" && <><p>{myRole.power}</p><small>Vale em: {POWER_WINDOWS[state.my_role].moment}</small></>}
+                {(myPowerWindow.status === "open" || myPowerWindow.status === "last_call") && <>
+                  <strong className="quest-power-moment">{myPowerWindow.status === "last_call" ? "⚠ Último momento" : "✦ Seu momento é agora"}</strong>
+                  {!powerOpen ? <button className="secondary-button" onClick={() => setPowerOpen(true)} type="button">{myRole.power} <span>✦</span></button> : <form onSubmit={submitPower}><div className="quest-section-kicker">USAR PODER · UMA VEZ NA PARTIDA</div><TextArea label={myRole.prompt} value={powerText} onChange={setPowerText} placeholder={POWER_PLACEHOLDERS[state.my_role]} maxLength={400} /><button className="primary-button" disabled={busy || powerText.trim().length < 8} type="submit">Acionar habilidade <span>✦</span></button></form>}
+                </>}
               </div>}
             </section>
             <aside className="quest-side-panel panel-card"><div className="quest-section-kicker">SUA EQUIPE</div><TeamRoster team={myTeam} /><div className="quest-step-list">{(["understand", "diverge", "decide", "build", ...(myTeam.chaos ? ["adapt"] : [])] as MissionStep[]).map((step) => <div className={myTeam.step === step ? "active" : myTeam.step === "complete" || (myTeam.step === "adapt" && step !== "adapt") ? "done" : ""} key={step}><span>{MISSION_STEPS[step].icon}</span><small>{MISSION_STEPS[step].label}</small></div>)}</div><p>Falem no Meet/Teams/Discord. O SquadQuest mantém o desafio, o canvas e o ritmo sincronizados.</p></aside>
