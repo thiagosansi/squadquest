@@ -250,6 +250,10 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-finalist small { color: #888398; font-family: 'DM Mono', monospace; font-size: 8px; }
 .quest-copy-center { margin: 15px 0; color: #aaa5b9; font-size: 11px; text-align: center; }
 .quest-selection { padding: 12px; border-radius: 8px; color: #cdc3ff; background: rgba(166,147,255,.08); font-size: 10px; text-align: center; }
+.quest-chosen-idea { margin: 17px 0 0; display: grid; gap: 7px; }
+.quest-chosen-idea .quest-section-kicker { margin-bottom: 2px; }
+.quest-chosen-idea strong { color: #eae6f5; font-size: 13px; font-weight: 600; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.quest-chosen-idea small { color: #888398; font-family: 'DM Mono', monospace; font-size: 8px; }
 .quest-side-panel { position: sticky; top: 15px; }
 .quest-step-list { margin: 18px 0; display: grid; gap: 8px; }
 .quest-step-list > div { display: flex; align-items: center; gap: 9px; color: #615e70; }

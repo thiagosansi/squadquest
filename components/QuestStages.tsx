@@ -171,6 +171,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
 
   const teams = state?.teams ?? EMPTY_TEAMS;
   const myTeam = teams.find((team) => team.id === state?.my_team_id) ?? null;
+  const selectedIdea = myTeam?.selected_idea_id ? (myTeam.ideas?.find((idea) => idea.id === myTeam.selected_idea_id) ?? myTeam.finalists?.find((idea) => idea.id === myTeam.selected_idea_id) ?? null) : null;
   const participants = useMemo(() => teamMembers(teams), [teams]);
   const myRole = state?.my_role ? SECRET_ROLES[state.my_role] : null;
   const currentPitch = teams.find((team) => team.pitch_order === state?.pitch_index) ?? null;
@@ -335,10 +336,11 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
               {myTeam.step === "decide" && <>
                 <p className="quest-copy-center">As duas ideias finalistas. Unanimidade não é necessária.</p>
                 <div className="quest-finalists">{(myTeam.finalists ?? []).map((idea) => <button className={`quest-finalist ${myTeam.my_decision_vote === idea.id ? "selected" : ""}`} key={idea.id} disabled={busy || Boolean(myTeam.my_decision_vote)} onClick={() => void execute("vote_squadquest_finalist", { target_room_id: roomId, idea_id: idea.id })} type="button"><strong>{idea.content}</strong><small>{idea.votes_count} votos na etapa anterior</small></button>)}</div>
-                {myTeam.selected_idea_id && <div className="quest-selection">✦ O time escolheu uma ideia. O Game Master vai abrir o canvas.</div>}
+                {myTeam.selected_idea_id && <div className="quest-selection">{selectedIdea ? <>✦ O time escolheu: «{selectedIdea.content}». O Game Master vai abrir o canvas.</> : "✦ O time escolheu uma ideia. O Game Master vai abrir o canvas."}</div>}
                 {myTeam.my_decision_vote && !myTeam.selected_idea_id && <p className="quest-vote-done">Seu voto está registrado; esperando o time.</p>}
               </>}
 
+              {(myTeam.step === "build" || myTeam.step === "adapt") && selectedIdea && <div className="quest-mission-card quest-chosen-idea"><div className="quest-section-kicker">IDEIA ESCOLHIDA PELO TIME</div><strong>{selectedIdea.content}</strong>{typeof selectedIdea.votes_count === "number" && <small>{selectedIdea.votes_count} votos</small>}</div>}
               {(myTeam.step === "build" || myTeam.step === "adapt") && <form className="quest-solution-form" onSubmit={saveSolution}>
                 <div className="quest-section-kicker">CANVAS COLABORATIVO · O TIME EDITA JUNTO</div>
                 <label className="quest-field"><span>Nome do produto</span><input value={(solutionDrafts[myTeam.id] ?? EMPTY_SOLUTION).name} onChange={(event) => updateSolution("name", event.target.value)} placeholder="Um nome que dê vontade de conhecer" maxLength={80} /></label>
