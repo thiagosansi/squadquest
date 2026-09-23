@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AvatarPicker } from "@/components/AvatarPicker";
+import { GameTrail } from "@/components/GameTrail";
 import { PlayerCard } from "@/components/PlayerCard";
 import { QuestStages } from "@/components/QuestStages";
 import { createLocalRoom, createPlayer, defaultAvatar, isRecentlyOnline, makeRoomCode, normalizeRoomCode } from "@/lib/game";
@@ -743,6 +744,7 @@ export function SquadQuestApp() {
         <div className="room-pill"><span>SALA</span><strong>{room.code}</strong><button onClick={() => void copyInvite()} type="button" aria-label="Copiar convite">{copied ? "✓" : "⧉"}</button></div>
         <button className="text-button" onClick={() => void leaveRoom()} type="button">Sair</button>
       </header>
+      {isHost && <GameTrail phase="waiting" playerCount={room.players.filter((player) => player.kind === "player").length} />}
       <section className="lobby-content">
         <div className="lobby-intro"><div className="eyebrow"><span /> SALA DE ESPERA</div><h1>O time está se formando.</h1><p>Compartilhe o código e espere todo mundo entrar na missão.</p></div>
         <div className="lobby-grid">
@@ -822,6 +824,13 @@ function IdentityScreen({
         <div className="phase-indicator"><span className="phase-number">01</span><span>QUEM É?</span></div>
         <button className="text-button" onClick={onBack} type="button">Sair</button>
       </header>
+      {self.kind === "host" && <GameTrail
+        phase="identity"
+        identityStep={state?.step ?? room.identityStep ?? "collecting"}
+        playerCount={room.players.filter((player) => player.kind === "player").length}
+        storiesSubmitted={state?.submittedCount}
+        storiesNeeded={state?.participantCount}
+      />}
       <section className="identity-game-content">
         <div className="eyebrow centered"><span /> PRIMEIRA FASE <span /></div>
         <h1>Quem é<br /><em>essa pessoa?</em></h1>

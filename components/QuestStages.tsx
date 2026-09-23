@@ -5,6 +5,7 @@ import { FINAL_VOTE_CATEGORIES, MISSION_STEPS, POWER_BONUS_SECONDS, POWER_WINDOW
 import type { GameplayState, GameplayTeamView, GamePhase, MissionSolution, MissionStep, Player, SecretRoleKey } from "@/lib/types";
 import type { SquadQuestSupabaseClient } from "@/lib/supabase";
 import { SketchPad } from "@/components/SketchPad";
+import { GameTrail } from "@/components/GameTrail";
 
 type GameplayRpcName =
   | "draw_squadquest_teams" | "start_squadquest_roles" | "start_squadquest_mission"
@@ -347,6 +348,16 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     <main className={`page-shell quest-shell ${chaosBurst ? "chaos-shake" : ""}`}>
     <div className="ambient-orb orb-one" /><div className="ambient-orb orb-two" />
     <QuestHeader roomCode={roomCode} phase={state?.phase ?? roomPhase} onExit={onExit} />
+    {isHost && state && <GameTrail
+      phase={state.phase}
+      teams={teams}
+      chaosReleased={Boolean(state.chaos_released_at)}
+      pitchIndex={state.pitch_index}
+      finalBallots={state.final_ballot_count}
+      participants={participants.length}
+      reflections={state.reflection_count}
+      now={now}
+    />}
     {!state ? <section className="quest-content"><div className="sync-message"><i /><span>Sincronizando a missão…</span></div>{error && <div className="error-message">{error}</div>}</section> : <>
 
       {state.phase === "teams" && <section className="quest-content">
