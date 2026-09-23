@@ -122,6 +122,7 @@ export type Avatar = {
   id: string;
   emoji: string;
   color: string;
+  label?: string;
 };
 
 export type Player = {
@@ -147,6 +148,26 @@ export type Room = {
 export type PersistedRoom = Omit<Room, "transport"> & { transport?: "local" };
 
 export const AVATARS: Avatar[] = [
+  { id: "astronaut", emoji: "🧑‍🚀", label: "Astronauta", color: "#9ac8ff" },
+  { id: "detective", emoji: "🕵️", label: "Detetive", color: "#f7da76" },
+  { id: "wizard", emoji: "🧙", label: "Mago", color: "#9b8cff" },
+  { id: "hero", emoji: "🦸", label: "Super-herói", color: "#f8a4b8" },
+  { id: "ninja", emoji: "🥷", label: "Ninja", color: "#81d4c8" },
+  { id: "rockstar", emoji: "🧑‍🎤", label: "Rockstar", color: "#dba5ff" },
+  { id: "chef", emoji: "🧑‍🍳", label: "Chef", color: "#ffbd7a" },
+  { id: "scientist", emoji: "🧑‍🔬", label: "Cientista", color: "#b8e986" },
+  { id: "cowboy", emoji: "🤠", label: "Caubói", color: "#f2c58a" },
+  { id: "vampire", emoji: "🧛", label: "Vampiro", color: "#c9a8ff" },
+  { id: "mermaid", emoji: "🧜", label: "Sereia", color: "#8fd8e8" },
+  { id: "fairy", emoji: "🧚", label: "Fada", color: "#ffb3d9" },
+  { id: "zombie", emoji: "🧟", label: "Zumbi", color: "#a8e0a0" },
+  { id: "genie", emoji: "🧞", label: "Gênio", color: "#7fb8ff" },
+  { id: "artist", emoji: "🧑‍🎨", label: "Artista", color: "#ffd9a8" },
+  { id: "firefighter", emoji: "🧑‍🚒", label: "Bombeiro", color: "#ffa8a8" },
+];
+
+/** Avatares da versão anterior. Não aparecem no seletor, mas continuam resolvendo para salas já criadas. */
+export const LEGACY_AVATARS: Avatar[] = [
   { id: "comet", emoji: "☄️", color: "#f8a4b8" },
   { id: "rocket", emoji: "🚀", color: "#9b8cff" },
   { id: "fox", emoji: "🦊", color: "#ffbd7a" },
@@ -160,5 +181,5 @@ export const AVATARS: Avatar[] = [
 export const MAX_PLAYERS = 6;
 
 export function avatarById(id: string): Avatar {
-  return AVATARS.find((avatar) => avatar.id === id) ?? AVATARS[0];
+  return AVATARS.find((avatar) => avatar.id === id) ?? LEGACY_AVATARS.find((avatar) => avatar.id === id) ?? AVATARS[0];
 }

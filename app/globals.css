@@ -38,8 +38,8 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .field-label input:focus { border-color: rgba(166,147,255,.7); box-shadow: 0 0 0 3px rgba(166,147,255,.1); }
 .field-label input::placeholder { color: #5f5e6d; }
 .code-input { font-family: 'DM Mono', monospace !important; font-size: 19px !important; letter-spacing: .23em !important; text-transform: uppercase !important; }
-.avatar-picker { display: flex; flex-wrap: wrap; gap: 8px; text-transform: none; }
-.avatar-choice { width: 42px; height: 42px; padding: 0; border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--avatar-color) 16%, transparent); font-size: 20px; transition: transform .15s, border-color .15s; }
+.avatar-picker { display: grid; grid-template-columns: repeat(8, 42px); gap: 8px; text-transform: none; }
+.avatar-choice { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--avatar-color) 16%, transparent); font-size: 19px; line-height: 1; transition: transform .15s, border-color .15s; }
 .avatar-choice:hover { transform: translateY(-2px); }
 .avatar-choice.selected { border-color: var(--avatar-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--avatar-color) 16%, transparent); }
 .primary-button, .secondary-button { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 800; transition: transform .18s, background .18s; }
@@ -110,7 +110,7 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .identity-card span { color: #777486; font-family: 'DM Mono', monospace; font-size: 8px; }
 .sync-message { display: flex; align-items: center; gap: 8px; margin-top: 34px; color: #707082; font-family: 'DM Mono', monospace; font-size: 9px; }
 .future-note { margin-top: 65px; color: #545162; font-family: 'DM Mono', monospace; font-size: 9px; }
-@media (max-width: 760px) { .topbar, .hero-section, .entry-card, .lobby-content { padding-left: 20px; padding-right: 20px; } .topbar { padding-top: 20px; } .hero-section { padding-top: 62px; } .connection-badge { display: none; } .lobby-grid { grid-template-columns: 1fr; } .player-grid { grid-template-columns: 1fr 1fr; } .home-footer { padding-left: 20px; padding-right: 20px; } .share-strip { align-items: flex-start; flex-direction: column; } .share-strip .secondary-button { width: 100%; } }
+@media (max-width: 760px) { .topbar, .hero-section, .entry-card, .lobby-content { padding-left: 20px; padding-right: 20px; } .avatar-picker { grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); } .topbar { padding-top: 20px; } .hero-section { padding-top: 62px; } .connection-badge { display: none; } .lobby-grid { grid-template-columns: 1fr; } .player-grid { grid-template-columns: 1fr 1fr; } .home-footer { padding-left: 20px; padding-right: 20px; } .share-strip { align-items: flex-start; flex-direction: column; } .share-strip .secondary-button { width: 100%; } }
 @media (max-width: 430px) { .brand { font-size: 14px; } .hero-section h1 { font-size: 47px; } .player-grid { grid-template-columns: 1fr; } .empty-player { min-height: 50px; } .lobby-intro h1 { font-size: 34px; } }
 
 .identity-game-content { width: min(760px, 100%); margin: 0 auto; padding: 48px 24px 72px; text-align: center; position: relative; z-index: 1; }

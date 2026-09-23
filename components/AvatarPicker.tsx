@@ -15,7 +15,7 @@ export function AvatarPicker({ value, onChange }: AvatarPickerProps) {
           className={`avatar-choice ${value.id === avatar.id ? "selected" : ""}`}
           key={avatar.id}
           type="button"
-          aria-label={`Avatar ${avatar.id}`}
+          aria-label={`Avatar ${avatar.label ?? avatar.id}`}
           aria-pressed={value.id === avatar.id}
           onClick={() => onChange(avatar)}
           style={{ "--avatar-color": avatar.color } as React.CSSProperties}
