@@ -11,7 +11,7 @@ export const SECRET_ROLES: Record<SecretRoleKey, { name: string; icon: string; p
     name: "Visionário 10x",
     icon: "🔭",
     power: "Leve a ideia dez vezes mais longe.",
-    prompt: "Descreva uma alternativa ousada, sem as limitações atuais.",
+    prompt: "Descreva uma versão dez vezes mais ousada da ideia escolhida, sem as limitações atuais.",
   },
   customer_voice: {
     name: "Voz do Cliente",
@@ -63,7 +63,7 @@ export const MISSION_STEPS: Record<MissionStep, { label: string; icon: string; m
 export const POWER_BONUS_SECONDS = 60;
 
 export const POWER_WINDOWS: Record<SecretRoleKey, { steps: MissionStep[]; opensAfterSeconds: number; requiresValue: boolean; moment: string }> = {
-  visionary: { steps: ["diverge"], opensAfterSeconds: 120, requiresValue: false, moment: "Divergir, depois da escrita silenciosa" },
+  visionary: { steps: ["build", "adapt"], opensAfterSeconds: 0, requiresValue: false, moment: "Construir, com a ideia escolhida" },
   devils_advocate: { steps: ["decide"], opensAfterSeconds: 0, requiresValue: false, moment: "Decidir, entre as duas finalistas" },
   customer_voice: { steps: ["build", "adapt"], opensAfterSeconds: 0, requiresValue: true, moment: "Construir, com a proposta de valor escrita" },
 };
