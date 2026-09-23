@@ -56,12 +56,38 @@ function durationForStep(step: MissionStep): number {
 }
 
 function elapsedForStep(team: GameplayTeamView, now: number): number {
-  return Math.max(0, Math.floor((now - new Date(team.step_started_at).getTime()) / 1000));
+  const startedAt = new Date(team.step_started_at).getTime();
+  if (!Number.isFinite(startedAt)) return 0;
+  return Math.max(0, Math.floor((now - startedAt) / 1000));
 }
 
 function remainingForStep(team: GameplayTeamView, now: number): number {
   if (!team.step) return 0;
   return Math.max(0, durationForStep(team.step) - elapsedForStep(team, now));
+}
+
+function stepMilestone(team: GameplayTeamView, now: number): { label: string; seconds: number } | null {
+  const elapsed = elapsedForStep(team, now);
+  const milestone = team.step === "understand" ? { label: "Ideias liberam em", seconds: 180 - elapsed }
+    : team.step === "diverge" ? { label: "Votação abre em", seconds: 120 - elapsed }
+    : team.step === "decide" ? { label: "Desempate libera em", seconds: 180 - elapsed }
+    : null;
+  return milestone && milestone.seconds > 0 ? milestone : null;
+}
+
+function GmStepTimer({ team, now }: { team: GameplayTeamView; now: number }) {
+  if (!team.step || team.step === "complete") return null;
+  const elapsed = elapsedForStep(team, now);
+  const duration = durationForStep(team.step);
+  const remaining = remainingForStep(team, now);
+  const over = duration > 0 && elapsed >= duration;
+  const progress = duration > 0 ? Math.min(100, Math.round((elapsed / duration) * 100)) : 0;
+  const milestone = stepMilestone(team, now);
+  return <div className={`quest-gm-timer ${over ? "over" : ""}`}>
+    <div><span>⏱</span><strong>{over ? `+${formatClock(elapsed - duration)}` : formatClock(remaining)}</strong><small>{over ? "além do tempo sugerido" : "restantes na etapa"}</small></div>
+    {milestone && <em>{milestone.label} {formatClock(milestone.seconds)}</em>}
+    <div className="quest-gm-timer-bar"><i style={{ width: `${progress}%` }} /></div>
+  </div>;
 }
 
 function TextArea({ label, value, onChange, placeholder, maxLength = 300, rows = 3 }: {
@@ -308,6 +334,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
           <div className="quest-heading"><div className="eyebrow"><span /> GAME MASTER · VISÃO DA MISSÃO</div><h1>As equipes estão<br /><em>construindo.</em></h1><p>Você vê o andamento e conduz as viradas, sem acompanhar textos privados nem avaliar ninguém.</p></div>
           <div className="quest-gm-grid">{teams.map((team) => <article className="quest-gm-team panel-card" key={team.id}>
             <div className="quest-team-title"><span>✦</span><h2>Time {team.name}</h2><small>{team.step ? `${MISSION_STEPS[team.step].icon} ${MISSION_STEPS[team.step].label}` : "Etapa em andamento"}</small></div>
+            <GmStepTimer team={team} now={now} />
             <TeamRoster team={team} />
             <TeamMissionCard team={team} />
             <div className="quest-progress-copy">{advanceHint(team)}</div>

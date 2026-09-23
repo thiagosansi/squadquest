@@ -204,6 +204,16 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-gm-content { max-width: 1320px; }
 .quest-gm-team .quest-mission-card { margin-top: 13px; }
 .quest-progress-copy { margin: 17px 0 12px; color: #9a95ac; font-family: 'DM Mono', monospace; font-size: 9px; line-height: 1.5; }
+.quest-gm-timer { margin: 12px 0 2px; display: grid; gap: 6px; }
+.quest-gm-timer > div:first-child { display: flex; align-items: baseline; gap: 8px; }
+.quest-gm-timer span { color: #bbaeff; }
+.quest-gm-timer strong { color: #e4dcff; font-family: 'DM Mono', monospace; font-size: 17px; }
+.quest-gm-timer small, .quest-gm-timer em { color: #767286; font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; }
+.quest-gm-timer em { color: #bbaeff; }
+.quest-gm-timer-bar { height: 3px; border-radius: 2px; background: rgba(166,147,255,.14); overflow: hidden; }
+.quest-gm-timer-bar i { display: block; height: 100%; background: var(--purple); transition: width 1s linear; }
+.quest-gm-timer.over strong { color: #f3a06a; }
+.quest-gm-timer.over .quest-gm-timer-bar i { background: #f3a06a; }
 .quest-gm-buttons { display: grid; gap: 8px; }
 .quest-gm-buttons > button { width: 100%; }
 .quest-gm-buttons .primary-button { justify-content: center; }
