@@ -329,6 +329,14 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .power-challenge-replies strong em { color: #f3c282; font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
 .power-challenge-replies p { margin: 3px 0 0; color: #e4e0ee; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .power-challenge-empty, .power-challenge-help, .power-challenge-wait { margin: 0; color: #9a95ac; font-size: 11px; line-height: 1.55; }
+.power-challenge-replies li.selectable { cursor: pointer; align-items: flex-start; border: 1px solid rgba(166,147,255,.22); transition: border-color .18s, background .18s; }
+.power-challenge-replies li.selectable:hover { border-color: rgba(166,147,255,.45); }
+.power-challenge-replies li.selected { border-color: rgba(166,147,255,.85); background: rgba(166,147,255,.12); }
+.power-challenge-replies li.selectable > div { flex: 1 1 auto; }
+.power-challenge-choose { flex: 0 0 auto; align-self: center; padding: 5px 9px; border: 1px solid rgba(166,147,255,.35); border-radius: 7px; color: #bcb2e9; background: rgba(166,147,255,.08); font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background .18s; }
+.power-challenge-choose:hover:not(:disabled) { background: rgba(166,147,255,.2); }
+.power-challenge-choose[aria-pressed="true"] { color: #171328; border-color: transparent; background: var(--purple); }
+.power-challenge-choose:disabled { opacity: .45; cursor: default; }
 .power-challenge-wait { color: #d6d0e2; }
 .power-challenge form { display: grid; gap: 10px; }
 .power-challenge form .quest-field small { color: #767286; font-family: 'DM Mono', monospace; font-size: 8px; font-weight: 400; text-align: right; }
@@ -346,6 +354,11 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-power-outcome p { margin: 0; color: #c9c2d9; font-size: 10px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .quest-power-outcome p strong { color: #eae6f5; }
 .quest-power-outcome small { color: #817c91; font-family: 'DM Mono', monospace; font-size: 8px; }
+.quest-power-outcome p.chosen { padding-left: 8px; border-left: 2px solid #78cfaa; color: #e4e0ee; font-size: 11px; }
+.quest-power-outcome p.chosen em { display: block; margin-top: 3px; color: #78cfaa; font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; letter-spacing: .05em; text-transform: uppercase; }
+.quest-power-outcome details { color: #9a95ac; font-size: 10px; }
+.quest-power-outcome details summary { cursor: pointer; font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .05em; text-transform: uppercase; }
+.quest-power-outcome details p { margin-top: 5px; padding-left: 8px; color: #9a95ac; }
 .quest-solution-summary .quest-power-outcomes { margin: 14px 0; }
 .quest-power-feed { margin-top: 18px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,.07); }
 .quest-power-event { display: flex; gap: 8px; margin: 8px 0; padding: 10px; border-radius: 7px; color: #d6d0e2; background: rgba(255,255,255,.035); }

@@ -25,7 +25,8 @@ export type MissionSolution = {
   sketches?: string[];
 };
 
-export type PowerChallengeReply = { player_id: string; name: string; avatar_id: string; content: string; round: number; created_at: string };
+/** `id` é o id da linha em gameplay_power_replies: o detentor precisa dele para aprovar uma resposta escolhida (migration 0011 expõe `'id', r.id`). */
+export type PowerChallengeReply = { id: string; player_id: string; name: string; avatar_id: string; content: string; round: number; created_at: string };
 
 /** Desafio de poder aberto, visto pelo integrante ou pelo detentor (migration 0010). */
 export type PowerChallengeView = {
@@ -56,6 +57,8 @@ export type PowerOutcome = {
   holder_name: string;
   round: number;
   replies: Array<{ name: string; content: string }>;
+  /** Resposta escolhida pelo detentor ao aprovar; null = aprovado pelo tempo ou sem resposta. */
+  chosen_reply: { name: string; content: string } | null;
 };
 
 export type GameplayTeamView = {

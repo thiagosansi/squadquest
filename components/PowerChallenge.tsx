@@ -15,17 +15,32 @@ type Props = {
   execute: (name: PowerChallengeRpcName, args: Record<string, unknown>) => Promise<boolean>;
 };
 
+/** Quando presente, as respostas da rodada `round` viram selecionáveis (uma por vez). */
+type Selectable = { round: number; selectedId: string | null; disabled: boolean; onSelect: (id: string) => void };
+
 const MIN_REPLY = 8;
 const MAX_REPLY = 300;
 const WARN_SECONDS = 15;
+const MISSING_ID_TITLE = "atualize a migration";
 
-function ReplyList({ replies }: { replies: PowerChallengeReply[] }) {
+function replyKey(reply: PowerChallengeReply) {
+  return reply.id || `${reply.player_id}-${reply.round}-${reply.created_at}`;
+}
+
+function ReplyList({ replies, selectable }: { replies: PowerChallengeReply[]; selectable?: Selectable }) {
   if (!replies.length) return <p className="power-challenge-empty">Nenhuma resposta ainda.</p>;
   return <ul className="power-challenge-replies">{replies.map((reply) => {
     const avatar = avatarById(reply.avatar_id);
-    return <li key={`${reply.player_id}-${reply.round}-${reply.created_at}`}>
+    const isCurrentRound = Boolean(selectable && reply.round === selectable.round);
+    // Até a migration 0011 expor `id` em power_challenge.replies, o item chega sem id e não pode ser escolhido.
+    const hasId = Boolean(reply.id);
+    const canSelect = isCurrentRound && hasId && !selectable?.disabled;
+    const selected = isCurrentRound && hasId && selectable?.selectedId === reply.id;
+    const choose = canSelect ? () => selectable?.onSelect(reply.id) : undefined;
+    return <li key={replyKey(reply)} className={`${isCurrentRound ? "selectable" : ""} ${selected ? "selected" : ""}`.trim() || undefined} onClick={choose}>
       <span className="mini-avatar" style={{ background: avatar.color }} aria-hidden="true">{avatar.emoji}</span>
       <div><strong>{reply.name}{reply.round === 2 && <em>rodada 2</em>}</strong><p>{reply.content}</p></div>
+      {isCurrentRound && <button className="power-challenge-choose" type="button" aria-pressed={selected} disabled={!canSelect} title={hasId ? undefined : MISSING_ID_TITLE} onClick={choose}>{selected ? "✓ Escolhida" : "Escolher"}</button>}
     </li>;
   })}</ul>;
 }
@@ -33,10 +48,13 @@ function ReplyList({ replies }: { replies: PowerChallengeReply[] }) {
 /** Overlay bloqueante do desafio de poder. Só aparece enquanto o servidor devolver team.power_challenge; não há botão de fechar. */
 export function PowerChallenge({ challenge, roomId, now, busy, error, execute }: Props) {
   const [replyText, setReplyText] = useState("");
+  const [pickedReplyId, setPickedReplyId] = useState<string | null>(null);
   const role = SECRET_ROLES[challenge.role_key];
   const remaining = secondsUntil(challenge.deadline_at, now);
   const expired = remaining <= 0;
   const roundReplies = challenge.replies.filter((reply) => reply.round === challenge.round);
+  // A escolha só vale se ainda apontar para uma resposta da rodada atual (uma rodada nova invalida a anterior).
+  const selectedReplyId = pickedReplyId && roundReplies.some((reply) => reply.id === pickedReplyId) ? pickedReplyId : null;
   const visibleReplies = challenge.i_am_holder || challenge.my_reply_submitted ? challenge.replies : challenge.replies.filter((reply) => reply.round < challenge.round);
   const trimmed = replyText.trim();
   const canReply = !busy && !expired && trimmed.length >= MIN_REPLY && trimmed.length <= MAX_REPLY;
@@ -49,9 +67,13 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
       .then((success) => { if (success) setReplyText(""); });
   }
 
-  function resolve(decision: "approve" | "extend") {
+  /** `approve` exige a resposta escolhida (chosen_reply_id); `extend` não envia o campo. */
+  function resolve(decision: "approve" | "extend", chosenReplyId?: string) {
     if (busy || expired) return;
-    void execute("resolve_squadquest_power_challenge", { target_room_id: roomId, challenge_id: challenge.id, decision });
+    if (decision === "approve" && !chosenReplyId) return;
+    const args: Record<string, unknown> = { target_room_id: roomId, challenge_id: challenge.id, decision };
+    if (decision === "approve") args.chosen_reply_id = chosenReplyId;
+    void execute("resolve_squadquest_power_challenge", args);
   }
 
   return <div className="power-challenge-backdrop" role="dialog" aria-modal="true" aria-labelledby="power-challenge-title">
@@ -70,10 +92,10 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
 
       {challenge.i_am_holder ? <>
         <div className="power-challenge-count">{roundReplies.length}/{challenge.expected_replies} responderam{challenge.round === 2 ? " nesta rodada" : ""}</div>
-        <ReplyList replies={visibleReplies} />
-        <p className="power-challenge-help">Aprovar registra as respostas como marca no canvas.{challenge.round === 1 ? " Se faltar gente, dá para abrir mais uma rodada de 60 s." : ""}</p>
+        <ReplyList replies={visibleReplies} selectable={{ round: challenge.round, selectedId: selectedReplyId, disabled: busy || expired, onSelect: setPickedReplyId }} />
+        <p className="power-challenge-help">Escolha a resposta que mais desafia o time; ela vira a marca no canvas.{challenge.round === 1 ? " Se faltar gente, dá para abrir mais uma rodada de 60 s." : ""}</p>
         <div className="power-challenge-actions">
-          <button className="primary-button" disabled={busy || expired || roundReplies.length === 0} onClick={() => resolve("approve")} type="button">Aprovar <span>✓</span></button>
+          <button className="primary-button" disabled={busy || expired || !selectedReplyId} onClick={() => resolve("approve", selectedReplyId ?? undefined)} type="button">Aprovar a escolhida <span>✓</span></button>
           {challenge.round === 1 && !expired && <button className="secondary-button" disabled={busy} onClick={() => resolve("extend")} type="button">Mais uma rodada (+60 s)</button>}
         </div>
       </> : challenge.my_reply_submitted ? <>
@@ -104,10 +126,23 @@ export function PowerOutcomes({ outcomes }: { outcomes: PowerOutcome[] | null | 
     const role = SECRET_ROLES[outcome.role_key];
     const label = POWER_OUTCOME_LABELS[outcome.role_key];
     const unanswered = outcome.status === "unanswered";
+    // Dados anteriores à migration 0011 podem chegar sem o campo: tratar como aprovado pelo tempo.
+    const chosen = outcome.chosen_reply ?? null;
+    const byTime = outcome.status === "approved" && !chosen && outcome.replies.length > 0;
+    // Remove só a primeira ocorrência da escolhida (mesmo nome + conteúdo); as demais ficam na lista compacta.
+    const chosenIndex = chosen ? outcome.replies.findIndex((reply) => reply.name === chosen.name && reply.content === chosen.content) : -1;
+    const others = chosenIndex >= 0 ? outcome.replies.filter((_, index) => index !== chosenIndex) : outcome.replies;
+    const kicker = unanswered ? `SEM RESPOSTA · ${label}` : byTime ? `${label} · aprovado pelo tempo` : label;
     return <div className={`quest-mission-card quest-power-outcome ${unanswered ? "unanswered" : ""}`} key={outcome.id}>
-      <div className="quest-section-kicker">{unanswered ? `SEM RESPOSTA · ${label}` : label}</div>
+      <div className="quest-section-kicker">{kicker}</div>
       <em>“{outcome.prompt}”</em>
-      {outcome.replies.length ? outcome.replies.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>) : <p>Ninguém respondeu a tempo.</p>}
+      {chosen ? <>
+        <p className="chosen"><strong>{chosen.name}:</strong> {chosen.content} <em>✓ escolhida por {outcome.holder_name}</em></p>
+        {others.length > 0 && <details>
+          <summary>outras respostas ({others.length})</summary>
+          {others.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>)}
+        </details>}
+      </> : outcome.replies.length ? outcome.replies.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>) : <p>Ninguém respondeu a tempo.</p>}
       <small>{role.icon} {role.name} · {outcome.holder_name}{outcome.round === 2 ? " · 2 rodadas" : ""}</small>
     </div>;
   })}</div>;
