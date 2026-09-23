@@ -395,6 +395,11 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     return team.power_challenge_status ? secondsUntil(team.power_challenge_status.deadline_at, now) : 0;
   }
 
+  /** Primeiro alvo com desafio de poder aberto: o caos espera o desafio terminar para não atropelar um poder em uso. */
+  function chaosBlockedBy(targets: GameplayTeamView[]): { team: GameplayTeamView; left: number } | null {
+    return targets.map((team) => ({ team, left: challengeRemaining(team, now) })).find((entry) => entry.left > 0) ?? null;
+  }
+
   function canAdvanceTeam(team: GameplayTeamView, now: number): boolean {
     if (!team.step) return false;
     if (challengeRemaining(team, now) > 0) return false;
@@ -493,11 +498,19 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
             <TeamMissionCard team={team} />
             <div className="quest-progress-copy">{advanceHint(team, now)}</div>
             <div className="quest-gm-buttons">
-              {team.step === "build" && !state.chaos_released_at && <button className="secondary-button" disabled={busy || elapsedForStep(team, now) < 240} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: team.id })} type="button">{elapsedForStep(team, now) < 240 ? `🔥 Caos em ${formatClock(240 - elapsedForStep(team, now))}` : "🔥 Lançar caos aqui"}</button>}
+              {team.step === "build" && !state.chaos_released_at && (() => {
+                const blocked = chaosBlockedBy([team]);
+                const elapsed = elapsedForStep(team, now);
+                return <button className="secondary-button" disabled={busy || Boolean(blocked) || elapsed < 240} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: team.id })} type="button">{blocked ? `🔥 Caos após o desafio · ${formatClock(blocked.left)}` : elapsed < 240 ? `🔥 Caos em ${formatClock(240 - elapsed)}` : "🔥 Lançar caos aqui"}</button>;
+              })()}
               <button className="primary-button" disabled={busy || !canAdvanceTeam(team, now)} onClick={() => void execute("advance_squadquest_mission", { target_room_id: roomId, target_team_id: team.id })} type="button">{team.step === "complete" ? "Missão concluída" : `Avançar ${team.name}`} <span>→</span></button>
             </div>
           </article>)}</div>
-          {!state.chaos_released_at && teams.some((team) => team.step === "build") && <div className="quest-host-action panel-card chaos-wide"><div><strong>🔥 Carta de caos</strong><p>Escolha um time acima ou lance a mesma carta para os dois. Cada equipe precisa adaptar a solução antes de apresentar.</p></div><button className="secondary-button" disabled={busy || !teams.every((team) => team.step === "build" && elapsedForStep(team, now) >= 240)} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: null })} type="button">Lançar para os dois times</button></div>}
+          {!state.chaos_released_at && teams.some((team) => team.step === "build") && (() => {
+            const blocked = chaosBlockedBy(teams.filter((team) => team.step === "build"));
+            const allReady = teams.every((team) => team.step === "build" && elapsedForStep(team, now) >= 240);
+            return <div className="quest-host-action panel-card chaos-wide"><div><strong>🔥 Carta de caos</strong><p>Escolha um time acima ou lance a mesma carta para os dois. Cada equipe precisa adaptar a solução antes de apresentar.</p><small>Lance o caos entre desafios, para não atropelar um poder em uso.</small></div><button className="secondary-button" disabled={busy || Boolean(blocked) || !allReady} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: null })} type="button">{blocked ? `🔥 Caos após o desafio do time ${blocked.team.name} · ${formatClock(blocked.left)}` : "Lançar para os dois times"}</button></div>;
+          })()}
           <div className="quest-host-action panel-card"><p>Quando os dois times concluírem, você sorteia quem apresenta primeiro.</p><button className="primary-button" disabled={busy || !teams.length || teams.some((team) => team.step !== "complete")} onClick={() => void execute("start_squadquest_pitches", { target_room_id: roomId })} type="button">Começar os pitches <span>→</span></button></div>
         </> : myTeam?.step ? <>
           <div className="quest-heading"><div className="eyebrow"><span /> MISSÃO EM EQUIPE · TIME {myTeam.name.toUpperCase()}</div><h1>{MISSION_STEPS[myTeam.step].icon} {MISSION_STEPS[myTeam.step].label}<br /><em>mão na massa.</em></h1><p>{MISSION_STEPS[myTeam.step].instruction}</p></div>

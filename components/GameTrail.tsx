@@ -107,7 +107,13 @@ export function nextStep(props: GameTrailProps): NextStep[] {
       if (teams.length > 0 && teams.every((team) => team.step === "complete")) return [{ action: "Começar os pitches" }];
       const lines: NextStep[] = [];
       const chaosReady = !chaosReleased && teams.some((team) => team.step === "build" && elapsedSeconds(team, now) >= CHAOS_UNLOCK_SECONDS);
-      if (chaosReady) lines.push({ action: "Lançar a carta de caos" });
+      if (chaosReady) {
+        const challenged = teams
+          .filter((team) => team.step === "build")
+          .map((team) => ({ team, left: team.power_challenge_status ? secondsUntil(team.power_challenge_status.deadline_at, now) : 0 }))
+          .find((entry) => entry.left > 0);
+        lines.push({ action: "Lançar a carta de caos", blocker: challenged ? `desafio do ${challenged.team.name} em andamento · ${formatClock(challenged.left)}` : undefined });
+      }
       teams.filter((team) => team.step !== "complete").slice(0, 2).forEach((team) => {
         lines.push({ action: `Avançar ${team.name}`, blocker: teamBlocker(team, chaosReleased, now) ?? undefined });
       });
