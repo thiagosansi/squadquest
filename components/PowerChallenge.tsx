@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { POWER_CHALLENGE_TITLES, POWER_OUTCOME_LABELS, SECRET_ROLES, formatClock, secondsUntil } from "@/lib/gameplay";
-import { avatarById, type PowerChallengeReply, type PowerChallengeView, type PowerOutcome } from "@/lib/types";
+import { avatarById, type PowerChallengeReply, type PowerChallengeView, type PowerOutcome, type PowerOutcomeReply } from "@/lib/types";
 
 export type PowerChallengeRpcName = "reply_squadquest_power_challenge" | "resolve_squadquest_power_challenge";
 
@@ -29,8 +29,10 @@ function replyKey(reply: PowerChallengeReply) {
 
 function ReplyList({ replies, selectable }: { replies: PowerChallengeReply[]; selectable?: Selectable }) {
   if (!replies.length) return <p className="power-challenge-empty">Nenhuma resposta ainda.</p>;
-  return <ul className="power-challenge-replies">{replies.map((reply) => {
-    const avatar = avatarById(reply.avatar_id);
+  return <ul className="power-challenge-replies">{replies.map((reply, index) => {
+    // Antes do reveal o servidor manda name/avatar_id null (migration 0014): a resposta fica anônima, só a própria vira "Você".
+    const label = reply.is_own ? "Você" : reply.name ?? `Resposta ${index + 1}`;
+    const avatar = reply.avatar_id ? avatarById(reply.avatar_id) : null;
     const isCurrentRound = Boolean(selectable && reply.round === selectable.round);
     // Até a migration 0011 expor `id` em power_challenge.replies, o item chega sem id e não pode ser escolhido.
     const hasId = Boolean(reply.id);
@@ -38,8 +40,10 @@ function ReplyList({ replies, selectable }: { replies: PowerChallengeReply[]; se
     const selected = isCurrentRound && hasId && selectable?.selectedId === reply.id;
     const choose = canSelect ? () => selectable?.onSelect(reply.id) : undefined;
     return <li key={replyKey(reply)} className={`${isCurrentRound ? "selectable" : ""} ${selected ? "selected" : ""}`.trim() || undefined} onClick={choose}>
-      <span className="mini-avatar" style={{ background: avatar.color }} aria-hidden="true">{avatar.emoji}</span>
-      <div><strong>{reply.name}{reply.round === 2 && <em>rodada 2</em>}</strong><p>{reply.content}</p></div>
+      {avatar
+        ? <span className="mini-avatar" style={{ background: avatar.color }} aria-hidden="true">{avatar.emoji}</span>
+        : <span className="mini-avatar anon" aria-hidden="true">✦</span>}
+      <div><strong>{label}{reply.round === 2 && <em>rodada 2</em>}</strong><p>{reply.content}</p></div>
       {isCurrentRound && <button className="power-challenge-choose" type="button" aria-pressed={selected} disabled={!canSelect} title={hasId ? undefined : MISSING_ID_TITLE} onClick={choose}>{selected ? "✓ Escolhida" : "Escolher"}</button>}
     </li>;
   })}</ul>;
@@ -122,6 +126,11 @@ export function PowerChallenge({ challenge, roomId, now, busy, error, execute }:
   </div>;
 }
 
+/** Rótulo de uma resposta no histórico: "Você" para a própria, o nome após o reveal, senão "Resposta N" pela posição na lista. */
+function outcomeReplyLabel(reply: PowerOutcomeReply, index: number) {
+  return reply.is_own ? "Você" : reply.name ?? `Resposta ${index + 1}`;
+}
+
 /** Marcas deixadas pelos desafios já resolvidos: aparecem no canvas (build/adapt) e no pitch. */
 export function PowerOutcomes({ outcomes }: { outcomes: PowerOutcome[] | null | undefined }) {
   if (!outcomes?.length) return null;
@@ -132,20 +141,20 @@ export function PowerOutcomes({ outcomes }: { outcomes: PowerOutcome[] | null | 
     // Dados anteriores à migration 0011 podem chegar sem o campo: tratar como aprovado pelo tempo.
     const chosen = outcome.chosen_reply ?? null;
     const byTime = outcome.status === "approved" && !chosen && outcome.replies.length > 0;
-    // Remove só a primeira ocorrência da escolhida (mesmo nome + conteúdo); as demais ficam na lista compacta.
-    const chosenIndex = chosen ? outcome.replies.findIndex((reply) => reply.name === chosen.name && reply.content === chosen.content) : -1;
-    const others = chosenIndex >= 0 ? outcome.replies.filter((_, index) => index !== chosenIndex) : outcome.replies;
+    // A escolhida sai da lista compacta pelo id (antes do reveal o nome vem null e não serve para casar).
+    const others = chosen ? outcome.replies.filter((reply) => reply.id !== chosen.id) : outcome.replies;
     const kicker = unanswered ? `SEM RESPOSTA · ${label}` : byTime ? `${label} · aprovado pelo tempo` : label;
+    const chosenLabel = chosen?.name ? `${chosen.name}:` : "Resposta escolhida:";
     return <div className={`quest-mission-card quest-power-outcome ${unanswered ? "unanswered" : ""}`} key={outcome.id}>
       <div className="quest-section-kicker">{kicker}</div>
       <em>“{outcome.prompt}”</em>
       {chosen ? <>
-        <p className="chosen"><strong>{chosen.name}:</strong> {chosen.content} <em>{outcome.holder_name ? `✓ escolhida por ${outcome.holder_name}` : "✓ escolhida pelo detentor do poder"}</em></p>
+        <p className="chosen"><strong>{chosenLabel}</strong> {chosen.content} <em>{outcome.holder_name ? `✓ escolhida por ${outcome.holder_name}` : "✓ escolhida pelo detentor do poder"}</em></p>
         {others.length > 0 && <details>
           <summary>outras respostas ({others.length})</summary>
-          {others.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>)}
+          {others.map((reply, index) => <p key={reply.id}><strong>{outcomeReplyLabel(reply, index)}:</strong> {reply.content}</p>)}
         </details>}
-      </> : outcome.replies.length ? outcome.replies.map((reply, index) => <p key={`${reply.name}-${index}`}><strong>{reply.name}:</strong> {reply.content}</p>) : <p>Ninguém respondeu a tempo.</p>}
+      </> : outcome.replies.length ? outcome.replies.map((reply, index) => <p key={reply.id}><strong>{outcomeReplyLabel(reply, index)}:</strong> {reply.content}</p>) : <p>Ninguém respondeu a tempo.</p>}
       <small>{role.icon} {role.name}{outcome.holder_name ? ` · ${outcome.holder_name}` : ""}{outcome.round === 2 ? " · 2 rodadas" : ""}</small>
     </div>;
   })}</div>;

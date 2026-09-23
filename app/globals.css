@@ -334,6 +334,7 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .power-challenge-replies li { display: flex; gap: 9px; min-width: 0; padding: 9px 10px; border-radius: 8px; background: rgba(255,255,255,.035); }
 .power-challenge-replies li > div { min-width: 0; }
 .power-challenge-replies .mini-avatar { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 6px; font-size: 12px; }
+.mini-avatar.anon { background: rgba(166, 147, 255, .18); color: #bbaeff; }
 .power-challenge-replies strong { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; color: #d2cbea; font-size: 10px; }
 .power-challenge-replies strong em { color: #f3c282; font-family: 'DM Mono', monospace; font-size: 8px; font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
 .power-challenge-replies p { margin: 3px 0 0; color: #e4e0ee; font-size: 11px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }

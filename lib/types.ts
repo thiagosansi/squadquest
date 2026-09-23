@@ -25,8 +25,20 @@ export type MissionSolution = {
   sketches?: string[];
 };
 
-/** `id` é o id da linha em gameplay_power_replies: o detentor precisa dele para aprovar uma resposta escolhida (migration 0011 expõe `'id', r.id`). */
-export type PowerChallengeReply = { id: string; player_id: string; name: string; avatar_id: string; content: string; round: number; created_at: string };
+/**
+ * `id` é o id da linha em gameplay_power_replies: o detentor precisa dele para aprovar uma resposta escolhida (migration 0011 expõe `'id', r.id`).
+ * Antes do reveal, player_id/name/avatar_id vêm null (exceto na própria resposta, marcada por is_own); do reveal em diante vêm preenchidos (migration 0014).
+ */
+export type PowerChallengeReply = {
+  id: string;
+  is_own: boolean;
+  player_id: string | null;
+  name: string | null;
+  avatar_id: string | null;
+  content: string;
+  round: number;
+  created_at: string;
+};
 
 /** Desafio de poder aberto, visto pelo integrante ou pelo detentor (migration 0010). */
 export type PowerChallengeView = {
@@ -59,10 +71,13 @@ export type PowerOutcome = {
   /** null até a fase de reveal: o detentor fica anônimo para o time (migration 0013). */
   holder_name: string | null;
   round: number;
-  replies: Array<{ name: string; content: string }>;
-  /** Resposta escolhida pelo detentor ao aprovar; null = aprovado pelo tempo ou sem resposta. */
-  chosen_reply: { name: string; content: string } | null;
+  /** `name` é null até o reveal (migration 0014); `is_own` marca a resposta do próprio jogador. */
+  replies: PowerOutcomeReply[];
+  /** Resposta escolhida pelo detentor ao aprovar (casada com `replies` por `id`); null = aprovado pelo tempo ou sem resposta. */
+  chosen_reply: PowerOutcomeReply | null;
 };
+
+export type PowerOutcomeReply = { id: string; is_own: boolean; name: string | null; content: string };
 
 export type GameplayTeamView = {
   id: string;
