@@ -475,7 +475,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
     {!state ? <section className="quest-content"><div className="sync-message"><i /><span>Sincronizando a missão…</span></div>{error && <div className="error-message">{error}</div>}</section> : <>
 
       {state.phase === "teams" && <section className="quest-content">
-        <div className="quest-heading"><div className="eyebrow"><span /> O SORTEIO FOI FEITO</div><h1>O acaso reuniu<br /><em>dois esquadrões.</em></h1><p>Missões diferentes, vozes diferentes. O Game Master fica de fora e conduz a aventura.</p></div>
+        <div className="quest-heading"><div className="eyebrow"><span /> O SORTEIO FOI FEITO</div><h1>O acaso reuniu<br /><em>{teams.length} esquadrões.</em></h1><p>Missões diferentes, vozes diferentes. O Game Master fica de fora e conduz a aventura.</p></div>
         <div className="quest-team-grid">{teams.map((team) => <article className="quest-team-card panel-card" key={team.id}>
           <div className="quest-team-title"><span>✦</span><h2>Time {team.name}</h2><small>{team.member_count} {team.member_count === 1 ? "jogador" : "jogadores"}</small></div>
           <TeamRoster team={team} /><TeamMissionCard team={team} />
@@ -509,9 +509,9 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
           {!state.chaos_released_at && teams.some((team) => team.step === "build") && (() => {
             const blocked = chaosBlockedBy(teams.filter((team) => team.step === "build"));
             const allReady = teams.every((team) => team.step === "build" && elapsedForStep(team, now) >= 240);
-            return <div className="quest-host-action panel-card chaos-wide"><div><strong>🔥 Carta de caos</strong><p>Escolha um time acima ou lance a mesma carta para os dois. Cada equipe precisa adaptar a solução antes de apresentar.</p><small>Lance o caos entre desafios, para não atropelar um poder em uso.</small></div><button className="secondary-button" disabled={busy || Boolean(blocked) || !allReady} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: null })} type="button">{blocked ? `🔥 Caos após o desafio do time ${blocked.team.name} · ${formatClock(blocked.left)}` : "Lançar para os dois times"}</button></div>;
+            return <div className="quest-host-action panel-card chaos-wide"><div><strong>🔥 Carta de caos</strong><p>Escolha um time acima ou lance para todos os times de uma vez. Cada equipe precisa adaptar a solução antes de apresentar.</p><small>Lance o caos entre desafios, para não atropelar um poder em uso.</small></div><button className="secondary-button" disabled={busy || Boolean(blocked) || !allReady} onClick={() => void execute("release_squadquest_chaos", { target_room_id: roomId, target_team_id: null })} type="button">{blocked ? `🔥 Caos após o desafio do time ${blocked.team.name} · ${formatClock(blocked.left)}` : "Lançar para todos os times"}</button></div>;
           })()}
-          <div className="quest-host-action panel-card"><p>Quando os dois times concluírem, você sorteia quem apresenta primeiro.</p><button className="primary-button" disabled={busy || !teams.length || teams.some((team) => team.step !== "complete")} onClick={() => void execute("start_squadquest_pitches", { target_room_id: roomId })} type="button">Começar os pitches <span>→</span></button></div>
+          <div className="quest-host-action panel-card"><p>Quando todos os times concluírem, você sorteia quem apresenta primeiro.</p><button className="primary-button" disabled={busy || !teams.length || teams.some((team) => team.step !== "complete")} onClick={() => void execute("start_squadquest_pitches", { target_room_id: roomId })} type="button">Começar os pitches <span>→</span></button></div>
         </> : myTeam?.step ? <>
           <div className="quest-heading"><div className="eyebrow"><span /> MISSÃO EM EQUIPE · TIME {myTeam.name.toUpperCase()}</div><h1>{MISSION_STEPS[myTeam.step].icon} {MISSION_STEPS[myTeam.step].label}<br /><em>mão na massa.</em></h1><p>{MISSION_STEPS[myTeam.step].instruction}</p></div>
           <div className="quest-timer-row"><div><span>⏱</span><strong>{formatClock(remainingForStep(myTeam, now))}</strong>{powerBonusSeconds(myTeam) > 0 && <b className="quest-timer-bonus">+{formatClock(powerBonusSeconds(myTeam))} poder</b>}<small>tempo sugerido nesta etapa</small></div><span>O Game Master conduz as transições</span></div>
@@ -625,7 +625,7 @@ export function QuestStages({ roomId, roomCode, phase: roomPhase, self, supabase
 
       {error && <div className="error-message quest-error" role="alert">{error}</div>}
     </>}
-    <footer className="home-footer"><span>1 Game Master · até 6 jogadores · sem placar individual</span><span>SquadQuest · {PHASE_LABELS[state?.phase ?? roomPhase]}</span></footer>
+    <footer className="home-footer"><span>1 Game Master · até 24 jogadores · sem placar individual</span><span>SquadQuest · {PHASE_LABELS[state?.phase ?? roomPhase]}</span></footer>
     </main>
   </>;
 }

@@ -5,10 +5,13 @@ import { AvatarPicker } from "@/components/AvatarPicker";
 import { GameTrail } from "@/components/GameTrail";
 import { PlayerCard } from "@/components/PlayerCard";
 import { QuestStages } from "@/components/QuestStages";
-import { createLocalRoom, createPlayer, defaultAvatar, isRecentlyOnline, makeRoomCode, normalizeRoomCode } from "@/lib/game";
+import { createLocalRoom, createPlayer, defaultAvatar, defaultTeamCount, formatTeamSizes, isRecentlyOnline, makeRoomCode, normalizeRoomCode, teamCountOptions, teamSizes } from "@/lib/game";
 import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase";
 import {
+  LOBBY_MIN_CARDS,
   MAX_PLAYERS,
+  MIN_IDENTITY_ROUNDS,
+  MIN_MISSION_PLAYERS,
   avatarById,
   type DemoIdentityGame,
   type GamePhase,
@@ -108,6 +111,8 @@ function localIdentityView(room: Room, self: Player): IdentityViewState {
     selfSubmitted: Boolean(game.submissions[self.id]),
     submittedCount: Object.keys(game.submissions).length,
     participantCount: room.players.filter((player) => player.kind === "player").length,
+    authorsRemaining: localAuthorsRemaining(room, game),
+    roundsRevealed: game.rounds.filter((round) => round.revealed).length,
     players: room.players.filter((player) => player.kind === "player").map(toIdentityOption),
     currentRound: active ? {
       number: active.number,
@@ -118,6 +123,12 @@ function localIdentityView(room: Room, self: Player): IdentityViewState {
       author: author ? toIdentityOption(author) : null,
     } : null,
   };
+}
+
+/** Participantes com história enviada que ainda não foram sorteados como autor (modo demo). */
+function localAuthorsRemaining(room: Room, game: DemoIdentityGame): number {
+  const usedAuthors = new Set(game.rounds.map((round) => round.authorPlayerId));
+  return room.players.filter((player) => player.kind === "player" && game.submissions[player.id] && !usedAuthors.has(player.id)).length;
 }
 
 function toIdentityOption(player: Player): IdentityPlayerOption {
@@ -145,12 +156,21 @@ function identityViewFromRpc(value: unknown): IdentityViewState {
   const key = current?.prompt_key;
   const promptKey: IdentityPromptKey = key === "dream" || key === "unexpected_story" ? key : "hidden_story";
   const step = data.step === "voting" || data.step === "reveal" || data.step === "complete" ? data.step : "collecting";
+  const submittedCount = typeof data.submitted_count === "number" ? data.submitted_count : 0;
+  const roundNumber = current && typeof current.number === "number" ? current.number : 0;
+  // A migration 0016 expõe os dois contadores; antes dela, deduzimos a partir da rodada atual.
+  const pickInt = (...values: unknown[]) => values.find((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const roundsRevealed = pickInt(data.rounds_revealed, data.roundsRevealed)
+    ?? (step === "reveal" || step === "complete" ? roundNumber : Math.max(0, roundNumber - 1));
+  const authorsRemaining = pickInt(data.authors_remaining, data.authorsRemaining) ?? Math.max(0, submittedCount - roundNumber);
   return {
     step,
     isHost: data.is_host === true,
     selfSubmitted: data.self_submitted === true,
-    submittedCount: typeof data.submitted_count === "number" ? data.submitted_count : 0,
+    submittedCount,
     participantCount: typeof data.participant_count === "number" ? data.participant_count : 0,
+    authorsRemaining,
+    roundsRevealed,
     players: players.map(toOption).filter((player): player is IdentityPlayerOption => player !== null),
     currentRound: current && typeof current.number === "number" && typeof current.answer === "string" ? {
       number: current.number,
@@ -531,7 +551,7 @@ export function SquadQuestApp() {
             promptKey: prompt.key,
             answer: game.submissions[player.id][prompt.key],
           })));
-        if (game.rounds.length >= 3 || candidates.length === 0) {
+        if (candidates.length === 0) {
           const nextRoom = { ...room, identityStep: "complete" as const };
           saveLocalRoom(nextRoom);
           updateRoomState(nextRoom);
@@ -607,10 +627,11 @@ export function SquadQuestApp() {
         const nextRounds = [...game.rounds];
         const active = nextRounds[index];
         nextRounds[index] = { ...active, revealed: true };
+        const nextGame = { ...game, rounds: nextRounds };
         const nextRoom = {
           ...room,
-          identityStep: active.number >= 3 ? "complete" as const : "reveal" as const,
-          demoIdentity: { ...game, rounds: nextRounds },
+          identityStep: localAuthorsRemaining(room, nextGame) === 0 ? "complete" as const : "reveal" as const,
+          demoIdentity: nextGame,
         };
         saveLocalRoom(nextRoom);
         updateRoomState(nextRoom);
@@ -626,13 +647,50 @@ export function SquadQuestApp() {
     }
   }
 
-  async function drawTeams() {
+  /** Encerra Quem é? antes de esgotar os autores (a partir da 3ª rodada revelada). */
+  async function finishIdentity() {
     if (!room || !self || self.kind !== "host") return;
     setBusy(true);
     setError("");
     try {
-      if (room.transport !== "supabase" || !supabase) throw new Error("O sorteio dos times precisa estar conectado ao Supabase.");
-      const { error: drawError } = await supabase.rpc("draw_squadquest_teams", { target_room_id: room.id });
+      if (room.transport === "local") {
+        const game: DemoIdentityGame = room.demoIdentity ?? { submissions: {}, rounds: [] };
+        if (game.rounds.filter((round) => round.revealed).length < MIN_IDENTITY_ROUNDS) {
+          throw new Error(`Revele pelo menos ${MIN_IDENTITY_ROUNDS} histórias antes de encerrar Quem é?.`);
+        }
+        // Se uma votação estiver aberta, a história atual é revelada junto com o encerramento.
+        const rounds = game.rounds.map((round, index) => index === game.rounds.length - 1 ? { ...round, revealed: true } : round);
+        const nextRoom = { ...room, identityStep: "complete" as const, demoIdentity: { ...game, rounds } };
+        saveLocalRoom(nextRoom);
+        updateRoomState(nextRoom);
+      } else if (supabase) {
+        // Mesmo padrão de QuestStages: a RPC chega com a migration 0016, antes de database.types.ts ser regenerado.
+        const { error: finishError } = await supabase.rpc("finish_squadquest_identity" as never, { target_room_id: room.id } as never);
+        if (finishError) throw finishError;
+        await loadRemoteIdentityState(room.id);
+      }
+    } catch (actionError) {
+      setError(shortError(actionError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function drawTeams(teamCount: number) {
+    if (!room || !self || self.kind !== "host") return;
+    setBusy(true);
+    setError("");
+    try {
+      const playerCount = room.players.filter((player) => player.kind === "player").length;
+      if (!teamCountOptions(playerCount).includes(teamCount)) throw new Error("Escolha um número de times válido para quem está na sala.");
+      if (room.transport === "local") {
+        // A missão só existe no Supabase; no demo guardamos a escolha e avisamos.
+        saveLocalRoom({ ...room, teamCount });
+        setRoom({ ...room, teamCount });
+        throw new Error("O sorteio dos times precisa estar conectado ao Supabase.");
+      }
+      if (!supabase) throw new Error("O sorteio dos times precisa estar conectado ao Supabase.");
+      const { error: drawError } = await supabase.rpc("draw_squadquest_teams" as never, { target_room_id: room.id, team_count: teamCount } as never);
       if (drawError) throw drawError;
       updateRoomState({ ...room, phase: "teams" });
     } catch (actionError) {
@@ -693,7 +751,7 @@ export function SquadQuestApp() {
           <div className="entry-content">
             <div className="entry-heading">
               <span className="entry-icon">{entryMode === "create" ? "🧭" : "🎟️"}</span>
-              <div><h2>{entryMode === "create" ? "Você será o Game Master" : "Qual é o código da missão?"}</h2><p>{entryMode === "create" ? "Crie a sala, convide até 6 pessoas e conduza a aventura." : "Peça o código de 5 caracteres para quem criou a partida."}</p></div>
+              <div><h2>{entryMode === "create" ? "Você será o Game Master" : "Qual é o código da missão?"}</h2><p>{entryMode === "create" ? "Crie a sala, convide até 24 pessoas e conduza a aventura." : "Peça o código de 5 caracteres para quem criou a partida."}</p></div>
             </div>
             {entryMode === "join" && <label className="field-label">Código da partida<input className="code-input" value={roomCode} onChange={(event) => setRoomCode(normalizeRoomCode(event.target.value))} placeholder="F7K2P" maxLength={5} autoCapitalize="characters" /></label>}
             <label className="field-label">Seu nome<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Como o time te chama?" maxLength={32} onKeyDown={(event) => { if (event.key === "Enter") void handleEnter(); }} /></label>
@@ -704,7 +762,7 @@ export function SquadQuestApp() {
             <p className="privacy-note">Sem login. Sem ranking individual. Só o time e a missão.</p>
           </div>
         </section>
-        <footer className="home-footer"><span>7 pessoas · 1 missão · infinitas histórias</span><span>v0.3 · Jogo completo</span></footer>
+        <footer className="home-footer"><span>Até 25 pessoas · 1 missão · infinitas histórias</span><span>v0.3 · Jogo completo</span></footer>
       </main>
     );
   }
@@ -723,6 +781,7 @@ export function SquadQuestApp() {
       onDraw={drawIdentityStory}
       onVote={submitIdentityVote}
       onReveal={revealIdentityStory}
+      onFinish={finishIdentity}
       onDrawTeams={drawTeams}
     />;
   }
@@ -749,8 +808,8 @@ export function SquadQuestApp() {
         <div className="lobby-intro"><div className="eyebrow"><span /> SALA DE ESPERA</div><h1>O time está se formando.</h1><p>Compartilhe o código e espere todo mundo entrar na missão.</p></div>
         <div className="lobby-grid">
           <section className="roster-panel panel-card">
-            <div className="panel-heading"><div><h2>Quem está aqui?</h2><p><span className="live-dot" /> {onlineCount} de 7 conectados</p></div><span className="roster-count">{room.players.filter((player) => player.kind === "player").length}/{MAX_PLAYERS}</span></div>
-            <div className="player-grid">{room.players.map((player) => <PlayerCard key={player.id} player={player} />)}{Array.from({ length: Math.max(0, MAX_PLAYERS - room.players.filter((player) => player.kind === "player").length) }).map((_, index) => <div className="empty-player" key={`empty-${index}`}><span>＋</span><small>Aguardando jogador</small></div>)}</div>
+            <div className="panel-heading"><div><h2>Quem está aqui?</h2><p><span className="live-dot" /> {onlineCount} de {room.players.length} conectados</p></div><span className="roster-count">{room.players.filter((player) => player.kind === "player").length}/{MAX_PLAYERS}</span></div>
+            <div className="player-grid">{room.players.map((player) => <PlayerCard key={player.id} player={player} />)}{Array.from({ length: Math.max(0, Math.min(LOBBY_MIN_CARDS - room.players.length, MAX_PLAYERS - room.players.filter((player) => player.kind === "player").length)) }).map((_, index) => <div className="empty-player" key={`empty-${index}`}><span>＋</span><small>Aguardando jogador</small></div>)}</div>
           </section>
           <aside className="host-panel panel-card">
             {isHost ? <><div className="host-panel-icon">🎮</div><h2>Sua vez de conduzir.</h2><p>Quando o time estiver pronto, inicie a primeira fase. Todos os navegadores avançam juntos.</p><div className="host-rule"><span>✦</span><span>Você não participa dos times</span></div><button className="primary-button full-button" disabled={busy || room.players.filter((player) => player.kind === "player").length < 2} onClick={() => void setRoomPhase("identity")} type="button">{startButtonLabel}<span>→</span></button><small className="host-hint">Pelo menos 2 jogadores precisam entrar para iniciar. Você fica fora do jogo.</small></> : <><div className="waiting-icon"><span>⏳</span></div><h2>Esperando o Game Master.</h2><p>Você já está na sala. Assim que o host iniciar, a próxima fase aparece aqui para todo mundo.</p><div className="waiting-line"><i /><span>Conectado como {self.name}</span></div></>}
@@ -781,6 +840,7 @@ function IdentityScreen({
   onDraw,
   onVote,
   onReveal,
+  onFinish,
   onDrawTeams,
 }: {
   room: Room;
@@ -793,11 +853,18 @@ function IdentityScreen({
   onDraw: () => void;
   onVote: (playerId: string) => void;
   onReveal: () => void;
-  onDrawTeams: () => void;
+  onFinish: () => void;
+  onDrawTeams: (teamCount: number) => void;
 }) {
   const [answers, setAnswers] = useState<IdentityAnswers>({ hidden_story: "", dream: "", unexpected_story: "" });
   const [formError, setFormError] = useState("");
+  const [chosenTeamCount, setChosenTeamCount] = useState<number | null>(null);
   const current = state?.currentRound;
+  const playerCount = room.players.filter((player) => player.kind === "player").length;
+  const teamOptions = teamCountOptions(playerCount);
+  // Se alguém sair e a escolha deixar de ser válida, volta ao padrão (times de 3 a 4).
+  const teamCount = chosenTeamCount !== null && teamOptions.includes(chosenTeamCount) ? chosenTeamCount : (room.teamCount && teamOptions.includes(room.teamCount) ? room.teamCount : defaultTeamCount(playerCount));
+  const canFinish = Boolean(state?.isHost && state.roundsRevealed >= MIN_IDENTITY_ROUNDS);
   const promptLabel = current ? IDENTITY_PROMPTS.find((prompt) => prompt.key === current.promptKey)?.label : "";
   const canDraw = Boolean(state && state.participantCount >= 2 && state.submittedCount === state.participantCount);
 
@@ -864,7 +931,7 @@ function IdentityScreen({
           </div>}
 
           {state.step === "voting" && current && <div className="identity-panel panel-card">
-            <div className="round-label">HISTÓRIA {current.number} DE 3</div>
+            <div className="round-label">HISTÓRIA {current.number} DE {Math.max(current.number, state.submittedCount)}</div>
             <div className="story-prompt">{promptLabel}</div>
             <blockquote className="story-quote">“{current.answer}”</blockquote>
             {state.isHost ? <>
@@ -889,7 +956,20 @@ function IdentityScreen({
             <p className="reveal-caption">Essa história era de {current.author?.name ?? "alguém do time"}.</p>
             <div className="revealed-story"><span>{promptLabel}</span><p>“{current.answer}”</p></div>
             <p>Sem pontos, sem certo ou errado — só mais uma história para conhecer melhor quem está do outro lado da tela.</p>
-            {state.step === "reveal" ? <button className="primary-button full-button" disabled={busy} onClick={onDraw} type="button">{busy ? "Preparando…" : "Próxima história"}<span>→</span></button> : state.isHost ? <><div className="completion-note">✦ &nbsp;Quem é? concluído. Agora vamos descobrir quais ideias vão nascer em cada time.</div><button className="primary-button full-button" disabled={busy || room.players.filter((player) => player.kind === "player").length < 4} onClick={onDrawTeams} type="button">Sortear os times <span>🎲</span></button><small className="host-hint">A missão precisa de pelo menos 4 jogadores, para formar dois times jogáveis.</small></> : <div className="completion-note">✦ &nbsp;Quem é? concluído. O Game Master vai sortear os times.</div>}
+            {state.step === "reveal" ? <button className="primary-button full-button" disabled={busy} onClick={onDraw} type="button">{busy ? "Preparando…" : state.authorsRemaining === 0 ? "Encerrar Quem é?" : "Próxima história"}<span>→</span></button> : state.isHost ? <>
+              <div className="completion-note">✦ &nbsp;Quem é? concluído. Agora vamos descobrir quais ideias vão nascer em cada time.</div>
+              {teamOptions.length > 0 && <fieldset className="team-count-picker">
+                <legend>Quantos times?</legend>
+                <div className="team-count-options" role="radiogroup" aria-label="Número de times">{teamOptions.map((option) => <button aria-checked={option === teamCount} className={option === teamCount ? "active" : ""} disabled={busy} key={option} onClick={() => setChosenTeamCount(option)} role="radio" type="button">{option}</button>)}</div>
+                <p className="team-count-preview">{teamCount} times · {formatTeamSizes(teamSizes(playerCount, teamCount))}</p>
+              </fieldset>}
+              <button className="primary-button full-button" disabled={busy || playerCount < MIN_MISSION_PLAYERS || teamOptions.length === 0} onClick={() => onDrawTeams(teamCount)} type="button">Sortear os times <span>🎲</span></button>
+              <small className="host-hint">A missão precisa de pelo menos {MIN_MISSION_PLAYERS} jogadores, para formar ao menos dois times; cada time tem de 2 a {Math.max(2, Math.ceil(playerCount / 2))} pessoas.</small>
+            </> : <div className="completion-note">✦ &nbsp;Quem é? concluído. O Game Master vai sortear os times.</div>}
+          </div>}
+          {state.isHost && state.step !== "complete" && <div className="identity-host-progress">
+            <span>{state.roundsRevealed} {state.roundsRevealed === 1 ? "história lida" : "histórias lidas"} · {state.authorsRemaining} {state.authorsRemaining === 1 ? "pessoa ainda não sorteada" : "pessoas ainda não sorteadas"}</span>
+            {canFinish && <button className="secondary-button" disabled={busy} onClick={onFinish} type="button">Encerrar Quem é? e ir para os times</button>}
           </div>}
         </>}
         {error && <div className="error-message identity-error" role="alert">{error}</div>}
@@ -897,7 +977,7 @@ function IdentityScreen({
           ? "DEMO LOCAL · respostas ficam neste navegador; use apenas conteúdo de teste, não histórias pessoais."
           : `Sala ${room.code} · Game Master conduz a fase · sem ranking individual`}</div>
       </section>
-      <footer className="home-footer"><span>Uma história de cada vez · até 3 rodadas</span><span>SquadQuest</span></footer>
+      <footer className="home-footer"><span>Uma história por pessoa · o Game Master pode encerrar a partir da 3ª</span><span>SquadQuest</span></footer>
     </main>
   );
 }

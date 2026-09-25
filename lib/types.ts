@@ -172,6 +172,10 @@ export type IdentityViewState = {
   selfSubmitted: boolean;
   submittedCount: number;
   participantCount: number;
+  /** Participantes com história enviada que ainda não tiveram uma rodada sorteada. */
+  authorsRemaining: number;
+  /** Rodadas já reveladas; o Game Master pode encerrar Quem é? a partir de 3. */
+  roundsRevealed: number;
   players: IdentityPlayerOption[];
   currentRound: IdentityRoundView | null;
 };
@@ -201,6 +205,8 @@ export type Room = {
   transport: "local" | "supabase";
   identityStep?: IdentityStep;
   demoIdentity?: DemoIdentityGame;
+  /** Modo demo: número de times escolhido pelo Game Master ao fim de Quem é? (a missão só existe no Supabase). */
+  teamCount?: number;
 };
 
 export type PersistedRoom = Omit<Room, "transport"> & { transport?: "local" };
@@ -236,7 +242,14 @@ export const LEGACY_AVATARS: Avatar[] = [
   { id: "unicorn", emoji: "🦄", color: "#dba5ff" },
 ];
 
-export const MAX_PLAYERS = 6;
+export const MAX_PLAYERS = 24;
+/** Cartões exibidos no lobby (jogadores + "Aguardando jogador"); acima disso a grade só cresce com gente real. */
+export const LOBBY_MIN_CARDS = 6;
+/** Mínimo de jogadores para a missão (dois times de 2). */
+export const MIN_MISSION_PLAYERS = 4;
+export const MAX_TEAMS = 12;
+/** Rodadas reveladas a partir das quais o Game Master pode encerrar Quem é?. */
+export const MIN_IDENTITY_ROUNDS = 3;
 
 export function avatarById(id: string): Avatar {
   return AVATARS.find((avatar) => avatar.id === id) ?? LEGACY_AVATARS.find((avatar) => avatar.id === id) ?? AVATARS[0];

@@ -156,6 +156,15 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .revealed-story span { color: #9c92c9; font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
 .revealed-story p { margin-top: 8px; color: #eae7f4; font-size: 14px; line-height: 1.6; }
 .reveal-panel .primary-button { margin-top: 22px; }
+.team-count-picker { margin: 18px 0 0; padding: 0; border: 0; text-align: center; }
+.team-count-picker legend { display: block; width: 100%; margin-bottom: 10px; color: #9b8ce1; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .13em; text-align: center; }
+.team-count-options { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.team-count-options button { min-width: 38px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 9px; color: #eae7f4; background: rgba(255,255,255,.03); font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 700; transition: border-color .15s, background .15s; }
+.team-count-options button:hover:not(:disabled) { border-color: rgba(166,147,255,.42); background: rgba(166,147,255,.08); }
+.team-count-options button.active { border-color: rgba(166,147,255,.7); background: rgba(166,147,255,.18); color: #fff; }
+.team-count-preview { margin: 10px 0 14px; color: #b9b0e3; font-size: 11px; }
+.identity-host-progress { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; width: min(560px, 100%); margin: 14px auto 0; padding: 12px 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; color: #b9b0e3; background: rgba(255,255,255,.025); font-family: 'DM Mono', monospace; font-size: 9px; }
+.identity-host-progress small { width: 100%; color: #7e7a90; font-size: 8px; }
 .completion-note { margin-top: 22px; padding: 13px; border: 1px solid rgba(166,147,255,.16); border-radius: 9px; color: #b9b0e3; background: rgba(166,147,255,.055); font-size: 10px; text-align: center; }
 .identity-error { max-width: 620px; margin: 14px auto 0; text-align: left; }
 .identity-room-note { margin: 22px 0 0; color: #5e5a70; font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: .04em; }
@@ -172,7 +181,7 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-heading h1 { margin: 17px 0 13px; font-size: clamp(38px, 5vw, 64px); line-height: .98; letter-spacing: -.075em; }
 .quest-heading h1 em { color: var(--purple); font-style: normal; }
 .quest-heading > p { max-width: 630px; margin: 0 auto; color: #9794a7; font-size: 13px; line-height: 1.7; }
-.quest-team-grid, .quest-gm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.quest-team-grid, .quest-gm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .quest-team-card, .quest-gm-team { min-width: 0; padding: 24px; }
 .quest-team-title { display: flex; align-items: center; gap: 10px; margin-bottom: 17px; }
 .quest-team-title > span { color: #b6aaff; font-size: 20px; }
@@ -403,7 +412,7 @@ h1 em, .hero-section h1 em { font-style: normal; color: var(--purple); }
 .quest-award > small { color: #968abf; font-family: 'DM Mono', monospace; font-size: 8px; text-transform: uppercase; }
 .quest-award h2 { margin: 4px 0 15px; color: #e4def3; font-size: 16px; }
 .quest-award-bars { display: grid; gap: 8px; clear: both; }
-.quest-award-bars > div { display: grid; grid-template-columns: 78px 1fr 20px; gap: 8px; align-items: center; color: #9f9aad; font-size: 9px; }
+.quest-award-bars > div { display: grid; grid-template-columns: minmax(78px, auto) 1fr 20px; gap: 8px; align-items: center; color: #9f9aad; font-size: 9px; }
 .quest-award-bars i { height: 5px; overflow: hidden; border-radius: 5px; background: rgba(255,255,255,.07); }
 .quest-award-bars b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#9a8aff,#68dcb0); }
 .quest-award-bars strong { color: #c9c2d9; font-family: 'DM Mono', monospace; font-size: 9px; text-align: right; }

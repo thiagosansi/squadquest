@@ -114,9 +114,12 @@ export function nextStep(props: GameTrailProps): NextStep[] {
           .find((entry) => entry.left > 0);
         lines.push({ action: "Lançar a carta de caos", blocker: challenged ? `desafio do ${challenged.team.name} em andamento · ${formatClock(challenged.left)}` : undefined });
       }
-      teams.filter((team) => team.step !== "complete").slice(0, 2).forEach((team) => {
+      // Com muitos times, a trilha mostra os três primeiros pendentes e resume o resto.
+      const pending = teams.filter((team) => team.step !== "complete");
+      pending.slice(0, 3).forEach((team) => {
         lines.push({ action: `Avançar ${team.name}`, blocker: teamBlocker(team, chaosReleased, now) ?? undefined });
       });
+      if (pending.length > 3) lines.push({ action: `+${plural(pending.length - 3, "time pendente", "times pendentes")}` });
       return lines.length ? lines : [{ action: "Aguardar as equipes" }];
     }
     case "pitch":
