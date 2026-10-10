@@ -10,3 +10,9 @@ pnpm-debug.log*
 .vercel
 *.tsbuildinfo
 .neocortex
+.maestro-wt/
+
+# Local/generated material not part of the public application
+CLAUDE.md
+SquadQuest_Regras_por_Etapa.docx
+build_squadquest_rules_doc.py
